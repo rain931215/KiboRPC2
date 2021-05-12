@@ -83,7 +83,7 @@ public class PathFinder {
         for (int i = 0; i < FList.size(); i++) {
             Node v = FList.get(i);
             if (nodeToInsert.getF() == v.getF() || nodeToInsert.getF() < v.getF()) {
-                FList.add(i, nodeToInsert); // TODO: Need Confirm
+                FList.add(i, nodeToInsert);
                 return;
             }
         }

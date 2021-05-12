@@ -35,10 +35,18 @@ public class YourService extends KiboRpcService {
         moveToPointA();
         Log.d(TAG, "Move To A Point Finish");
 
-        // Scan QR Code
-        long currentMills = System.currentTimeMillis();
-        String qrStr = scanQrCode();
-        Log.d(TAG, "Qr Code Scan " + (qrStr.isEmpty() ? "Failed" : "Succeeded") + " in " + (System.currentTimeMillis() - currentMills) + " ms");
+        String qrStr="";
+        int retry_MAX = 5;
+        int time=0;
+        while (qrStr.isEmpty() && time<retry_MAX){
+            time++;
+            // Scan QR Code
+            moveToPoint(new Point(11.21,-10,5));
+            long currentMills = System.currentTimeMillis();
+            qrStr = scanQrCode();
+            Log.d(TAG, "Qr Code Scan " + (qrStr.isEmpty() ? "Failed" : "Succeeded") + " in " + (System.currentTimeMillis() - currentMills) + " ms");
+
+        }
         boolean decodeSucceeded = false;
         int koz_pattern = 0;
         Point a_prime = null;
@@ -55,14 +63,21 @@ public class YourService extends KiboRpcService {
             }
         }
 
+
         if (decodeSucceeded) {
             // Move To A'
             Log.d(TAG, "Move To A' Start");
             moveToPointAPrime(a_prime, koz_pattern);
             Log.d(TAG, "Move To A' Finish");
 
+            Log.d(TAG,"Turn on laser");
+            api.laserControl(true);
+            api.takeSnapshot();
+            api.laserControl(false);
+            Log.d(TAG,"Turn off laser");
+
             Log.d(TAG, "Move To B Start");
-            //moveToPointB(koz_pattern);
+            moveToPointB(a_prime,koz_pattern);
             Log.d(TAG, "Move To B Finish");
         }
 
@@ -72,12 +87,12 @@ public class YourService extends KiboRpcService {
     }
 
     public void moveToPointA() {
-        new MoveTask().execute(new MoveTaskParameters(api, new Point(11.21, -9.8, 5), new Quaternion(0, 0, -0.707f, 0.707f), LOOP_MAX, ENABLE_PRINT_ROBOT_LOCATION));
-        new MoveTask().execute(new MoveTaskParameters(api, new Point(11.21, -10, 5), new Quaternion(0, 0, -0.707f, 0.707f), LOOP_MAX, ENABLE_PRINT_ROBOT_LOCATION));
+        moveToPoint(new Point(11.21,-9.8,5));
+        //moveToPoint(new Point(11.21,-10,5));
     }
 
     public String scanQrCode() {
-        String qrStr = "";
+        String qrStr;
         Log.d(TAG, "[QR] Qr Code Scan Started");
         Bitmap navBitmap = api.getBitmapNavCam();
         Bitmap crop = Bitmap.createBitmap(navBitmap, 605, 460, 320, 240);
@@ -88,43 +103,109 @@ public class YourService extends KiboRpcService {
     }
 
     public void moveToPointAPrime(Point point, int KOZ_Pattern) {
-        if (KOZ_Pattern == 7) {
-            Log.d(TAG,"Start to move to node 1");
-            new MoveTask().execute(
-                    new MoveTaskParameters(
-                            api,
-                            new Point(point.getX() + 0.24, -9.8, point.getZ()-0.43),
-                            generalQuaternion,
-                            LOOP_MAX, ENABLE_PRINT_ROBOT_LOCATION)
-            );
-            Log.d(TAG,"Start to move to node 2");
-            new MoveTask().execute(
-                    new MoveTaskParameters(
-                            api,
-                            new Point(point.getX() + 0.24, -9.8, point.getZ()),
-                            generalQuaternion,
-                            LOOP_MAX, ENABLE_PRINT_ROBOT_LOCATION)
-            );
-            Log.d(TAG,"Start to move to node 3");
-            new MoveTask().execute(
-                    new MoveTaskParameters(
-                            api,
-                            new Point(point.getX(), -9.8, point.getZ()),
-                            generalQuaternion,
-                            LOOP_MAX, ENABLE_PRINT_ROBOT_LOCATION)
-            );
-            Log.d(TAG,"Lasering");
-            api.laserControl(true);
-            api.takeSnapshot();
-            api.laserControl(false);
-            return;
-
+        boolean moved = false;
+        double x = point.getX();
+        double y = point.getY();
+        double z = point.getZ();
+        switch (KOZ_Pattern){
+            case 1:
+                moveToPoint(new Point(x,y,z-0.31));
+                moved=true;
+                break;
+            case 2:
+                moved=true;
+                break;
+            case 3:
+                moveToPoint(new Point(x,y,z-0.31));
+                moved=true;
+                break;
+            case 4:
+                moveToPoint(new Point(x,y,z-0.31));
+                moved=true;
+                break;
+            case 5:
+                moveToPoint(new Point(x-0.25,y,z-0.38));
+                moveToPoint(new Point(x-0.25,y,z));
+                moved=true;
+                break;
+            case 6:
+                // TODO Need Smart Detect
+                moveToPoint(new Point(x-0.25,y,z-0.38));
+                moveToPoint(new Point(x-0.25,y,z));
+                moved=true;
+                break;
+            case 7:
+                moveToPoint(new Point(x+0.25,y,z-0.38));
+                moveToPoint(new Point(x+0.25,y,z));
+                moved=true;
+                break;
+            case 8:
+                moveToPoint(new Point(x,y,z-0.31));
+                moved=true;
+                break;
+            default:
+                break;
         }
-        new NavigateTask().execute(new NavigateTaskParameters(api, KOZ_Pattern, point, LOOP_MAX, ENABLE_PRINT_ROBOT_LOCATION));
+        if(moved){
+            moveToPoint(point);
+        }
     }
 
-    public void moveToPointB(int KOZ_Pattern) {
-        new NavigateTask().execute(new NavigateTaskParameters(api, KOZ_Pattern, new Point(10.6, -8.0, 4.5), LOOP_MAX, ENABLE_PRINT_ROBOT_LOCATION));
+    public void moveToPointB(Point aprimeRef,int KOZ_Pattern) {
+        // TODO Need Modify
+
+        /*
+        * This version is only for test purpose
+        * Not for Judge
+        */
+
+        boolean moved = false;
+        double x = aprimeRef.getX();
+        double y = aprimeRef.getY();
+        double z = aprimeRef.getZ();
+        switch (KOZ_Pattern){
+            case 1:
+                moveToPoint(new Point(x,y,z-0.31));
+                moveToPoint(new Point(10.5,y,z-0.31));
+                moved=true;
+                break;
+            case 2:
+                moveToPoint(new Point(10.5,y,z));
+                moved=true;
+                break;
+            case 3:
+                moveToPoint(new Point(10.5,y,z));
+                moved=true;
+                break;
+            case 4:
+                moveToPoint(new Point(10.5,y,z));
+                moved=true;
+                break;
+            case 5:
+                moveToPoint(new Point(10.5,y,z));
+                moved=true;
+                break;
+            case 6:
+                moveToPoint(new Point(10.5,y,z));
+                moved=true;
+                break;
+            case 7:
+                moveToPoint(new Point(x,y,z+0.31));
+                moveToPoint(new Point(10.5,y,z+0.31));
+                moved=true;
+                break;
+            case 8:
+                moveToPoint(new Point(x,y,z+0.31));
+                moveToPoint(new Point(10.5,y,z+0.31));
+                moved=true;
+                break;
+            default:
+                break;
+        }
+        if(moved){
+            moveToPoint(new Point(10.5, -8.0, 4.5));
+            moveToPoint(new Point(10.6, -8.0, 4.5));
+        }
     }
 
     public void moveToPointWithNavigation(Point goalPoint, Quaternion quaternion, boolean printRobotPosition) {
@@ -203,6 +284,18 @@ public class YourService extends KiboRpcService {
 
     public List<Node> sortNodes(List<Node> nodes) {
         return nodes;
+    }
+
+    public void moveToPoint(Point point){
+        new MoveTask().execute(
+                new MoveTaskParameters(
+                        api,
+                        point,
+                        generalQuaternion,
+                        LOOP_MAX,
+                        ENABLE_PRINT_ROBOT_LOCATION
+                )
+        );
     }
 }
 
