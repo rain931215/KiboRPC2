@@ -7,7 +7,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 
 import gov.nasa.arc.astrobee.types.Point;
 import gov.nasa.arc.astrobee.types.Quaternion;
@@ -21,94 +20,111 @@ import jp.jaxa.iss.kibo.rpc.defaultapk.Tasks.*;
  * Class meant to handle commands from the Ground Data System and execute them in Astrobee
  */
 
-public class YourService extends KiboRpcService{
+public class YourService extends KiboRpcService {
     public static final String TAG = "KiboAPP";
     private static final boolean ENABLE_PRINT_ROBOT_LOCATION = false;
     private static final int LOOP_MAX = 3;
+    private static final Quaternion generalQuaternion = new Quaternion(0, 0, -0.707f, 0.707f);
 
     @Override
     protected void runPlan1() {
         api.startMission();
 
         // Move To A Point
-        Log.d(TAG,"Move To A Point Start");
+        Log.d(TAG, "Move To A Point Start");
         moveToPointA();
         Log.d(TAG, "Move To A Point Finish");
 
         // Scan QR Code
         long currentMills = System.currentTimeMillis();
         String qrStr = scanQrCode();
-        Log.d(TAG,"Qr Code Scan "+(qrStr.isEmpty()?"Failed":"Succeeded")+" in "+(System.currentTimeMillis()-currentMills)+" ms");
+        Log.d(TAG, "Qr Code Scan " + (qrStr.isEmpty() ? "Failed" : "Succeeded") + " in " + (System.currentTimeMillis() - currentMills) + " ms");
         boolean decodeSucceeded = false;
-        int koz_pattern=0;
-        Point a_prime=null;
-        if(!qrStr.isEmpty()){
-            Log.d(TAG,"Qr Code Data: "+qrStr);
+        int koz_pattern = 0;
+        Point a_prime = null;
+        if (!qrStr.isEmpty()) {
+            Log.d(TAG, "Qr Code Data: " + qrStr);
             api.sendDiscoveredQR(qrStr); // Send the discovered qr code data to judge server
             try {
                 JSONObject qrJson = new JSONObject(qrStr);
                 koz_pattern = qrJson.getInt("p");
                 a_prime = new Point(qrJson.getDouble("x"), qrJson.getDouble("y"), qrJson.getDouble("z"));
-                decodeSucceeded=true;
+                decodeSucceeded = true;
             } catch (JSONException e) {
                 e.printStackTrace();
             }
         }
 
-        if(decodeSucceeded){
+        if (decodeSucceeded) {
             // Move To A'
-            Log.d(TAG,"Move To A' Start");
-            //moveToPointAPrime(a_prime,koz_pattern);
-            Log.d(TAG,"Move To A' Finish");
+            Log.d(TAG, "Move To A' Start");
+            moveToPointAPrime(a_prime, koz_pattern);
+            Log.d(TAG, "Move To A' Finish");
 
-            Log.d(TAG,"Move To B Start");
+            Log.d(TAG, "Move To B Start");
             //moveToPointB(koz_pattern);
-            Log.d(TAG,"Move To B Finish");
+            Log.d(TAG, "Move To B Finish");
         }
 
 
-        Log.d(TAG,"Report Mission Completion");
+        Log.d(TAG, "Report Mission Completion");
         api.reportMissionCompletion();
     }
 
-    public void moveToPointA(){
-        try {
-            new MoveTask().execute(new MoveTaskParameters(api,new Point(11.21,-9.8,5),new Quaternion(0, 0, -0.707f, 0.707f),LOOP_MAX,ENABLE_PRINT_ROBOT_LOCATION)).get();
-            new MoveTask().execute(new MoveTaskParameters(api,new Point(11.21,-10,5),new Quaternion(0, 0, -0.707f, 0.707f),LOOP_MAX,ENABLE_PRINT_ROBOT_LOCATION)).get();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+    public void moveToPointA() {
+        new MoveTask().execute(new MoveTaskParameters(api, new Point(11.21, -9.8, 5), new Quaternion(0, 0, -0.707f, 0.707f), LOOP_MAX, ENABLE_PRINT_ROBOT_LOCATION));
+        new MoveTask().execute(new MoveTaskParameters(api, new Point(11.21, -10, 5), new Quaternion(0, 0, -0.707f, 0.707f), LOOP_MAX, ENABLE_PRINT_ROBOT_LOCATION));
     }
 
-    public String scanQrCode(){
-        String qrStr="";
+    public String scanQrCode() {
+        String qrStr = "";
         Log.d(TAG, "[QR] Qr Code Scan Started");
         Bitmap navBitmap = api.getBitmapNavCam();
-        Bitmap crop = Bitmap.createBitmap(navBitmap,640,480,320,240);
+        Bitmap crop = Bitmap.createBitmap(navBitmap, 605, 460, 320, 240);
         navBitmap.recycle();
-        try {
-            qrStr = new ScanTask().execute(crop).get();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        qrStr = new ScanTask().execute(crop);
         crop.recycle();
         return qrStr;
     }
 
-    public void moveToPointAPrime(Point point,int KOZ_Pattern){
-        try {
-            new NavigateTask().execute(new NavigateTaskParameters(api,KOZ_Pattern,point,LOOP_MAX,ENABLE_PRINT_ROBOT_LOCATION)).get();
-        } catch (Exception e) {
-            e.printStackTrace();
+    public void moveToPointAPrime(Point point, int KOZ_Pattern) {
+        if (KOZ_Pattern == 7) {
+            Log.d(TAG,"Start to move to node 1");
+            new MoveTask().execute(
+                    new MoveTaskParameters(
+                            api,
+                            new Point(point.getX() + 0.24, -9.8, point.getZ()-0.43),
+                            generalQuaternion,
+                            LOOP_MAX, ENABLE_PRINT_ROBOT_LOCATION)
+            );
+            Log.d(TAG,"Start to move to node 2");
+            new MoveTask().execute(
+                    new MoveTaskParameters(
+                            api,
+                            new Point(point.getX() + 0.24, -9.8, point.getZ()),
+                            generalQuaternion,
+                            LOOP_MAX, ENABLE_PRINT_ROBOT_LOCATION)
+            );
+            Log.d(TAG,"Start to move to node 3");
+            new MoveTask().execute(
+                    new MoveTaskParameters(
+                            api,
+                            new Point(point.getX(), -9.8, point.getZ()),
+                            generalQuaternion,
+                            LOOP_MAX, ENABLE_PRINT_ROBOT_LOCATION)
+            );
+            Log.d(TAG,"Lasering");
+            api.laserControl(true);
+            api.takeSnapshot();
+            api.laserControl(false);
+            return;
+
         }
+        new NavigateTask().execute(new NavigateTaskParameters(api, KOZ_Pattern, point, LOOP_MAX, ENABLE_PRINT_ROBOT_LOCATION));
     }
 
-    public void moveToPointB(int KOZ_Pattern){
-        try {
-            new NavigateTask().execute(new NavigateTaskParameters(api,KOZ_Pattern,new Point(10.6, -8.0, 4.5),LOOP_MAX,ENABLE_PRINT_ROBOT_LOCATION)).get();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+    public void moveToPointB(int KOZ_Pattern) {
+        new NavigateTask().execute(new NavigateTaskParameters(api, KOZ_Pattern, new Point(10.6, -8.0, 4.5), LOOP_MAX, ENABLE_PRINT_ROBOT_LOCATION));
     }
 
     public void moveToPointWithNavigation(Point goalPoint, Quaternion quaternion, boolean printRobotPosition) {
@@ -170,7 +186,7 @@ public class YourService extends KiboRpcService{
                 double dx, dy, dz;
                 PathFinder.Vec3d nodePos = successNodes.get(i).getPos();
                 //if (reverse[0]) {
-                if(false){
+                if (false) {
                     dx = goalPoint.getX() + nodePos.getX();
                     dy = goalPoint.getY() + nodePos.getY();
                     dz = goalPoint.getZ() + nodePos.getZ();
@@ -179,7 +195,7 @@ public class YourService extends KiboRpcService{
                     dy = currentPos.getY() + nodePos.getY();
                     dz = currentPos.getZ() + nodePos.getZ();
                 }
-                Log.d(TAG,"PathFinder Move To "+dx+" "+dy+" "+dz);
+                Log.d(TAG, "PathFinder Move To " + dx + " " + dy + " " + dz);
                 api.moveTo(new Point(dx, dy, dz), quaternion, printRobotPosition);
             }
         }
