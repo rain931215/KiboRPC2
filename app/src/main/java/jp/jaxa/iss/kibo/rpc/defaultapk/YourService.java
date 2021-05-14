@@ -22,36 +22,41 @@ import jp.jaxa.iss.kibo.rpc.defaultapk.Tasks.*;
 
 public class YourService extends KiboRpcService {
     public static final String TAG = "KiboAPP";
-    private static final boolean ENABLE_PRINT_ROBOT_LOCATION = false;
-    private static final int LOOP_MAX = 3;
+    private static final boolean ENABLE_PRINT_ROBOT_LOCATION = true;
+    private static final int LOOP_MAX = 5;
     private static final Quaternion generalQuaternion = new Quaternion(0, 0, -0.707f, 0.707f);
-
+    // 10.3 to 11.55
+    private static final double minX = 10.35;
+    private static final double maxX = 11.5;
+    // -10.2 ~ -7.4
+    private static final double minY = -10.2;
+    private static final double maxY = -7.4;
+    // 4.32 ~ 5.57
+    private static final double minZ = 4.27;
+    private static final double maxZ = 5.52;
     @Override
     protected void runPlan1() {
         api.startMission();
 
         // Move To A Point
-        Log.d(TAG, "Move To A Point Start");
         moveToPointA();
         Log.d(TAG, "Move To A Point Finish");
 
-        String qrStr="";
+        StringBuilder qrStrBuilder=new StringBuilder();
         int retry_MAX = 5;
         int time=0;
-        while (qrStr.isEmpty() && time<retry_MAX){
+        while (qrStrBuilder.length()==0 && time<retry_MAX){
             time++;
             // Scan QR Code
             moveToPoint(new Point(11.21,-10,5));
-            long currentMills = System.currentTimeMillis();
-            qrStr = scanQrCode();
-            Log.d(TAG, "Qr Code Scan " + (qrStr.isEmpty() ? "Failed" : "Succeeded") + " in " + (System.currentTimeMillis() - currentMills) + " ms");
-
+            qrStrBuilder.append(scanQrCode());
         }
         boolean decodeSucceeded = false;
         int koz_pattern = 0;
         Point a_prime = null;
-        if (!qrStr.isEmpty()) {
-            Log.d(TAG, "Qr Code Data: " + qrStr);
+        if (qrStrBuilder.length()>0) {
+            String qrStr=qrStrBuilder.toString();
+            Log.d(TAG, "QR CODE Data: " + qrStr);
             api.sendDiscoveredQR(qrStr); // Send the discovered qr code data to judge server
             try {
                 JSONObject qrJson = new JSONObject(qrStr);
@@ -88,7 +93,7 @@ public class YourService extends KiboRpcService {
 
     public void moveToPointA() {
         moveToPoint(new Point(11.21,-9.8,5));
-        //moveToPoint(new Point(11.21,-10,5));
+        moveToPoint(new Point(11.21,-10,5));
     }
 
     public String scanQrCode() {
@@ -124,18 +129,18 @@ public class YourService extends KiboRpcService {
                 moved=true;
                 break;
             case 5:
-                moveToPoint(new Point(x-0.25,y,z-0.38));
+                moveToPoint(new Point(x-0.25,y,z-0.485));
                 moveToPoint(new Point(x-0.25,y,z));
                 moved=true;
                 break;
             case 6:
                 // TODO Need Smart Detect
-                moveToPoint(new Point(x-0.25,y,z-0.38));
+                moveToPoint(new Point(x-0.25,y,z-0.485));
                 moveToPoint(new Point(x-0.25,y,z));
                 moved=true;
                 break;
             case 7:
-                moveToPoint(new Point(x+0.25,y,z-0.38));
+                moveToPoint(new Point(x+0.25,y,z-0.485));
                 moveToPoint(new Point(x+0.25,y,z));
                 moved=true;
                 break;
@@ -165,7 +170,7 @@ public class YourService extends KiboRpcService {
         double z = aprimeRef.getZ();
         switch (KOZ_Pattern){
             case 1:
-                moveToPoint(new Point(x,y,z-0.31));
+                moveToPoint(new Point(x,y,z-0.31<=4.31?4.31:z-0.31));
                 moveToPoint(new Point(10.5,y,z-0.31));
                 moved=true;
                 break;
@@ -190,20 +195,24 @@ public class YourService extends KiboRpcService {
                 moved=true;
                 break;
             case 7:
-                moveToPoint(new Point(x,y,z+0.31));
-                moveToPoint(new Point(10.5,y,z+0.31));
+                Log.d(TAG,"Pattern 7 Move to node 1");
+                moveToPoint(new Point(x,y,5.54));
+                Log.d(TAG,"Pattern 7 Move to node 2");
+                moveToPoint(new Point(10.5,y,5.54));
                 moved=true;
                 break;
             case 8:
-                moveToPoint(new Point(x,y,z+0.31));
-                moveToPoint(new Point(10.5,y,z+0.31));
+                moveToPoint(new Point(x,y,5.54));
+                moveToPoint(new Point(10.5,y,5.54));
                 moved=true;
                 break;
             default:
                 break;
         }
         if(moved){
+            Log.d(TAG,"B Point Node 1");
             moveToPoint(new Point(10.5, -8.0, 4.5));
+            Log.d(TAG,"B Point Node 2");
             moveToPoint(new Point(10.6, -8.0, 4.5));
         }
     }
@@ -287,6 +296,18 @@ public class YourService extends KiboRpcService {
     }
 
     public void moveToPoint(Point point){
+        if(point.getX()<=minX || point.getX()>=maxX){
+            Log.d(TAG,"[Move] Point's x is out of KIZ: "+point.getX());
+            point = new Point(point.getX()<=minX?minX:maxX,point.getY(),point.getZ());
+        }
+        if(point.getY()<=minY||point.getY()>=maxY){
+            Log.d(TAG,"[Move] Point's y is out of KIZ: "+point.getY());
+            point = new Point(point.getX(),point.getY()<=minY?minY:maxY,point.getZ());
+        }
+        if(point.getZ()<=minZ||point.getZ()>=maxZ){
+            Log.d(TAG,"[Move] Point's z is out of KIZ: "+point.getZ());
+            point = new Point(point.getX(),point.getY(),point.getZ()<=minZ?minZ:maxZ);
+        }
         new MoveTask().execute(
                 new MoveTaskParameters(
                         api,
