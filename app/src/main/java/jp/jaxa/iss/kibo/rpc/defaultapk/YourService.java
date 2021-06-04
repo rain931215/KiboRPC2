@@ -5,7 +5,11 @@ import android.util.Log;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.opencv.aruco.Aruco;
+import org.opencv.core.Mat;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import gov.nasa.arc.astrobee.types.Point;
@@ -75,6 +79,39 @@ public class YourService extends KiboRpcService {
             moveToPointAPrime(a_prime, koz_pattern);
             Log.d(TAG, "Move To A' Finish");
 
+            Log.d(TAG,"Scan AR Tag Start");
+            List<Mat> arucoCorners = new ArrayList<>();
+            Mat arucoIDs = new Mat();
+            Aruco.detectMarkers(
+                    api.getMatNavCam(),
+                    Aruco.getPredefinedDictionary(Aruco.DICT_5X5_250),
+                    arucoCorners,
+                    arucoIDs);
+            Log.d(TAG,"Scan AR Tag Finish");
+            Log.d(TAG,"AR Tag ID List Length: "+arucoIDs.size());
+            int targetPixelX = 0;
+            int targetPixelY = 0;
+            for (int i=0;i<arucoIDs.size().height;i++) {
+                Mat mat = arucoCorners.get(i); // 1 row 4 column(1 LeftUp 2 RightUp 3 RightDown 4 LeftDown)
+                int[] pixelLeftUp = {};
+                int[] pixelLeftDown = {};
+                int[] pixelRightUP = {};
+                int[] pixelRightDown = {};
+                mat.get(0,0,pixelLeftUp);
+                mat.get(0,1,pixelRightUP);
+                mat.get(0,2,pixelRightDown);
+                mat.get(0,3,pixelLeftDown);
+                targetPixelX+=pixelLeftUp[0]+pixelLeftDown[0]+pixelRightUP[0]+pixelRightDown[0];
+                targetPixelY+=pixelLeftUp[1]+pixelLeftDown[1]+pixelRightUP[1]+pixelRightDown[1];
+                Log.d(TAG,"AR Tag ID "+ Arrays.toString(arucoIDs.get(i, 0)) +" Data: {"+ Arrays.toString(pixelLeftUp) +","+ Arrays.toString(pixelLeftDown) +","+ Arrays.toString(pixelRightUP) +","+ Arrays.toString(pixelRightDown)+"}");
+            }
+            targetPixelX/=16;
+            targetPixelY/=16;
+            Log.d(TAG,"Target X:"+targetPixelX+" Y:"+targetPixelY);
+            // 6 pixel is 1 cm
+
+
+
             Log.d(TAG,"Turn on laser");
             api.laserControl(true);
             api.takeSnapshot();
@@ -100,6 +137,7 @@ public class YourService extends KiboRpcService {
         String qrStr;
         Log.d(TAG, "[QR] Qr Code Scan Started");
         Bitmap navBitmap = api.getBitmapNavCam();
+        Log.d(TAG,"Bitmap H:"+navBitmap.getHeight()+" W:"+navBitmap.getWidth());
         Bitmap crop = Bitmap.createBitmap(navBitmap, 605, 460, 320, 240);
         navBitmap.recycle();
         qrStr = new ScanTask().execute(crop);
@@ -128,7 +166,7 @@ public class YourService extends KiboRpcService {
                 moveToPoint(new Point(x,y,z-0.31));
                 moved=true;
                 break;
-            case 5:
+            case 5:  // Works
                 moveToPoint(new Point(x-0.25,y,z-0.485));
                 moveToPoint(new Point(x-0.25,y,z));
                 moved=true;
