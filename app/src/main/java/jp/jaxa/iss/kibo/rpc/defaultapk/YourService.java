@@ -42,6 +42,7 @@ public class YourService extends KiboRpcService {
     protected void runPlan1() {
         api.startMission();
 
+        Log.d(TAG,"Max Ram"+Runtime.getRuntime().maxMemory());
         // Move To A Point
         moveToPointA();
         Log.d(TAG, "Move To A Point Finish");
@@ -93,14 +94,10 @@ public class YourService extends KiboRpcService {
             int targetPixelY = 0;
             for (int i=0;i<arucoIDs.size().height;i++) {
                 Mat mat = arucoCorners.get(i); // 1 row 4 column(1 LeftUp 2 RightUp 3 RightDown 4 LeftDown)
-                int[] pixelLeftUp = {};
-                int[] pixelLeftDown = {};
-                int[] pixelRightUP = {};
-                int[] pixelRightDown = {};
-                mat.get(0,0,pixelLeftUp);
-                mat.get(0,1,pixelRightUP);
-                mat.get(0,2,pixelRightDown);
-                mat.get(0,3,pixelLeftDown);
+                double[] pixelLeftUp = mat.get(0,0);
+                double[] pixelLeftDown = mat.get(0,1);
+                double[] pixelRightUP = mat.get(0,2);
+                double[] pixelRightDown = mat.get(0,3);
                 targetPixelX+=pixelLeftUp[0]+pixelLeftDown[0]+pixelRightUP[0]+pixelRightDown[0];
                 targetPixelY+=pixelLeftUp[1]+pixelLeftDown[1]+pixelRightUP[1]+pixelRightDown[1];
                 Log.d(TAG,"AR Tag ID "+ Arrays.toString(arucoIDs.get(i, 0)) +" Data: {"+ Arrays.toString(pixelLeftUp) +","+ Arrays.toString(pixelLeftDown) +","+ Arrays.toString(pixelRightUP) +","+ Arrays.toString(pixelRightDown)+"}");
@@ -109,8 +106,31 @@ public class YourService extends KiboRpcService {
             targetPixelY/=16;
             Log.d(TAG,"Target X:"+targetPixelX+" Y:"+targetPixelY);
             // 6 pixel is 1 cm
+            // Screen is H:960 W:1280 (Center: 480 640)
+            // dx dy is cm
+            double dx = (targetPixelX-640)/6.0;
+            double dy = (targetPixelY-480)/6.0;
+            Log.d(TAG,"Target dX:"+dx+" dY:"+dy);
+            Point p = api.getTrustedRobotKinematics().getPosition();
+            // unit is m
+//            double yaw = 45-Math.toDegrees(Math.atan2(9.8,dx/100));
+//            double pitch = 0;
+//            double roll = Math.toDegrees(Math.atan2(9.8,dy/100))-90;
+            double yaw = Math.atan(dx/100/9.8)-0.5*Math.PI*0.98;
+            double pitch = 0;
+            double roll = Math.atan(dy/100/9.8);
 
-
+            Log.d(TAG,"Yaw:"+yaw+" Pitch:"+pitch+" Roll:"+roll);
+            Quaternion q = euler_to_quaternion(yaw,pitch,roll);
+            new MoveTask().execute(
+                    new MoveTaskParameters(
+                            api,
+                            p,
+                            q,
+                            LOOP_MAX,
+                            ENABLE_PRINT_ROBOT_LOCATION
+                    )
+            );
 
             Log.d(TAG,"Turn on laser");
             api.laserControl(true);
@@ -137,7 +157,7 @@ public class YourService extends KiboRpcService {
         String qrStr;
         Log.d(TAG, "[QR] Qr Code Scan Started");
         Bitmap navBitmap = api.getBitmapNavCam();
-        Log.d(TAG,"Bitmap H:"+navBitmap.getHeight()+" W:"+navBitmap.getWidth());
+        //Log.d(TAG,"Bitmap H:"+navBitmap.getHeight()+" W:"+navBitmap.getWidth());
         Bitmap crop = Bitmap.createBitmap(navBitmap, 605, 460, 320, 240);
         navBitmap.recycle();
         qrStr = new ScanTask().execute(crop);
@@ -355,6 +375,13 @@ public class YourService extends KiboRpcService {
                         ENABLE_PRINT_ROBOT_LOCATION
                 )
         );
+    }
+    Quaternion euler_to_quaternion(double yaw,double pitch,double roll){
+        Double qx = Math.sin(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) - Math.cos(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
+        Double qy = Math.cos(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2);
+        Double qz = Math.cos(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2) - Math.sin(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2);
+        Double qw = Math.cos(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
+        return new Quaternion(qx.floatValue(),qy.floatValue(),qz.floatValue(),qw.floatValue());
     }
 }
 
