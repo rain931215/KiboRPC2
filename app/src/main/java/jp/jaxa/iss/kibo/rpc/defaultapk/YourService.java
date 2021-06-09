@@ -116,12 +116,10 @@ public class YourService extends KiboRpcService {
             double yaw = Math.atan(dx/100/9.8)-0.5*Math.PI;
             double pitch = 0;
             double roll = Math.atan(dy/100/9.8);
-//            double yaw = Math.atan(dx/100/(9.8-0.13))-0.5*Math.PI;
-//            double pitch = 0;
-//            double roll = Math.atan(dy/100/(9.8-0.13));
 
             Log.d(TAG,"Yaw:"+yaw+" Pitch:"+pitch+" Roll:"+roll);
             Quaternion q = euler_to_quaternion(yaw,pitch,roll);
+            Log.d(TAG,"Qu "+q.toString());
             new MoveTask().execute(
                     new MoveTaskParameters(
                             api,
@@ -131,6 +129,7 @@ public class YourService extends KiboRpcService {
                             ENABLE_PRINT_ROBOT_LOCATION
                     )
             );
+            Log.d(TAG,"Rotation Finish : "+api.getTrustedRobotKinematics().getOrientation().toString());
 
             Log.d(TAG,"Turn on laser");
             api.laserControl(true);
