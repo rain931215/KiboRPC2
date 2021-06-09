@@ -82,6 +82,7 @@ public class YourService extends KiboRpcService {
 
             Log.d(TAG,"Scan AR Tag Start");
             List<Mat> arucoCorners = new ArrayList<>();
+            Point p = api.getTrustedRobotKinematics().getPosition();
             Mat arucoIDs = new Mat();
             Aruco.detectMarkers(
                     api.getMatNavCam(),
@@ -111,14 +112,13 @@ public class YourService extends KiboRpcService {
             double dx = (targetPixelX-640)/6.0;
             double dy = (targetPixelY-480)/6.0;
             Log.d(TAG,"Target dX:"+dx+" dY:"+dy);
-            Point p = api.getTrustedRobotKinematics().getPosition();
             // unit is m
-//            double yaw = 45-Math.toDegrees(Math.atan2(9.8,dx/100));
-//            double pitch = 0;
-//            double roll = Math.toDegrees(Math.atan2(9.8,dy/100))-90;
-            double yaw = Math.atan(dx/100/9.8)-0.5*Math.PI*0.98;
+            double yaw = Math.atan(dx/100/9.8)-0.5*Math.PI;
             double pitch = 0;
             double roll = Math.atan(dy/100/9.8);
+//            double yaw = Math.atan(dx/100/(9.8-0.13))-0.5*Math.PI;
+//            double pitch = 0;
+//            double roll = Math.atan(dy/100/(9.8-0.13));
 
             Log.d(TAG,"Yaw:"+yaw+" Pitch:"+pitch+" Roll:"+roll);
             Quaternion q = euler_to_quaternion(yaw,pitch,roll);
@@ -377,10 +377,14 @@ public class YourService extends KiboRpcService {
         );
     }
     Quaternion euler_to_quaternion(double yaw,double pitch,double roll){
-        Double qx = Math.sin(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) - Math.cos(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
-        Double qy = Math.cos(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2);
-        Double qz = Math.cos(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2) - Math.sin(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2);
-        Double qw = Math.cos(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
+        Double qx = Math.sin(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) + Math.cos(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
+        Double qy = Math.cos(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2) - Math.sin(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2);
+        Double qz = Math.cos(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2) + Math.sin(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2);
+        Double qw = Math.cos(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) - Math.sin(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
+//        Double qx = Math.sin(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) - Math.cos(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
+//        Double qy = Math.cos(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2);
+//        Double qz = Math.cos(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2) - Math.sin(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2);
+//        Double qw = Math.cos(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
         return new Quaternion(qx.floatValue(),qy.floatValue(),qz.floatValue(),qw.floatValue());
     }
 }
