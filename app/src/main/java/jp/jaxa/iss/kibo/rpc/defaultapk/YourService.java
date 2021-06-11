@@ -3,6 +3,7 @@ package jp.jaxa.iss.kibo.rpc.defaultapk;
 import android.graphics.Bitmap;
 import android.util.Log;
 
+import org.apache.commons.lang.ObjectUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.opencv.aruco.Aruco;
@@ -82,7 +83,8 @@ public class YourService extends KiboRpcService {
 
             Log.d(TAG,"Scan AR Tag Start");
             List<Mat> arucoCorners = new ArrayList<>();
-            Point p = api.getTrustedRobotKinematics().getPosition();
+
+            //Point p = api.getTrustedRobotKinematics().getPosition();
             Mat arucoIDs = new Mat();
             Aruco.detectMarkers(
                     api.getMatNavCam(),
@@ -91,8 +93,8 @@ public class YourService extends KiboRpcService {
                     arucoIDs);
             Log.d(TAG,"Scan AR Tag Finish");
             Log.d(TAG,"AR Tag ID List Length: "+arucoIDs.size());
-            int targetPixelX = 0;
-            int targetPixelY = 0;
+            double targetPixelX = 0;
+            double targetPixelY = 0;
             for (int i=0;i<arucoIDs.size().height;i++) {
                 Mat mat = arucoCorners.get(i); // 1 row 4 column(1 LeftUp 2 RightUp 3 RightDown 4 LeftDown)
                 double[] pixelLeftUp = mat.get(0,0);
@@ -103,32 +105,80 @@ public class YourService extends KiboRpcService {
                 targetPixelY+=pixelLeftUp[1]+pixelLeftDown[1]+pixelRightUP[1]+pixelRightDown[1];
                 Log.d(TAG,"AR Tag ID "+ Arrays.toString(arucoIDs.get(i, 0)) +" Data: {"+ Arrays.toString(pixelLeftUp) +","+ Arrays.toString(pixelLeftDown) +","+ Arrays.toString(pixelRightUP) +","+ Arrays.toString(pixelRightDown)+"}");
             }
+
+
             targetPixelX/=16;
             targetPixelY/=16;
-            Log.d(TAG,"Target X:"+targetPixelX+" Y:"+targetPixelY);
-            // 6 pixel is 1 cm
-            // Screen is H:960 W:1280 (Center: 480 640)
-            // dx dy is cm
-            double dx = (targetPixelX-640)/6.0;
-            double dy = (targetPixelY-480)/6.0;
-            Log.d(TAG,"Target dX:"+dx+" dY:"+dy);
-            // unit is m
-            double yaw = Math.atan(dx/100/9.8)-0.5*Math.PI;
-            double pitch = 0;
-            double roll = Math.atan(dy/100/9.8);
+            //targetPixelY = targetPixelY>0?targetPixelY+5:targetPixelY-5;
 
+            Log.d(TAG,"Target X:"+targetPixelX+" Y:"+targetPixelY);
+
+            // 6.875 pixel is 1 cm
+            // Screen is H:960 W:1280 Center:(640,480)
+            // dx dy is cm
+            //actually,the ture center is (699.64,497.1)
+
+            double dx = (targetPixelX-699.64);
+            double dy = (targetPixelY-497.1);
+            Log.d(TAG,"Target dX:"+dx+" dY:"+dy);
+
+            // unit is m
+            //double yaw = Math.atan(dx/100/9.8)-0.5*Math.PI;
+            //double pitch = 0;
+            //double roll = Math.atan(dy/100/9.8);
+
+
+            //double yaw = Math.atan(dx/980)-Math.PI*0.5;
+            //double pitch = 0;
+            //double roll = Math.atan(dy/980);
+
+            double yaw = 0;
+            double pitch = 0;
+            double roll = 0;
+
+            //yaw = Math.atan(dx/(970*6))*5;
+
+            //k is a experienced-const
+            double k = 0;
+            k = Math.abs(5.8/(dx/100));
+            Log.d(TAG,"The const-k:"+k);
+
+            yaw = dx>0?-0.5*Math.PI+Math.atan(Math.abs(dx)/(970*6))*k:-0.5*Math.PI-Math.atan(Math.abs(dx)/(970*6))*k;
+
+            //roll = dy>0?-Math.atan(Math.abs(dy)/(970*6))*k:Math.atan(Math.abs(dy)/(970*6))*k;
+
+
+            //還沒轉之前
+            Quaternion no_fix = api.getTrustedRobotKinematics().getOrientation();
+            Log.d(TAG,"Haven't fix "+no_fix.toString());
             Log.d(TAG,"Yaw:"+yaw+" Pitch:"+pitch+" Roll:"+roll);
-            Quaternion q = euler_to_quaternion(yaw,pitch,roll);
-            Log.d(TAG,"Qu "+q.toString());
+            Quaternion q = euler_to_quaternion(roll,pitch,yaw);
+            Log.d(TAG,"The Qu "+q.toString());
+
+//            double sx = api.getTrustedRobotKinematics().getPosition().getX();
+//            double sy = api.getTrustedRobotKinematics().getPosition().getY();
+//            double sz = api.getTrustedRobotKinematics().getPosition().getZ();
+//
+//            Point s = new Point(sx,sy,sz-dy/6);
+//
+//            api.relativeMoveTo(s,q,ENABLE_PRINT_ROBOT_LOCATION);
+
+            Point s =api.getTrustedRobotKinematics().getPosition();
+
+//            左右的轉動 向上平移
             new MoveTask().execute(
                     new MoveTaskParameters(
                             api,
-                            p,
+                            s,
                             q,
                             LOOP_MAX,
                             ENABLE_PRINT_ROBOT_LOCATION
                     )
             );
+
+
+
+
             Log.d(TAG,"Rotation Finish : "+api.getTrustedRobotKinematics().getOrientation().toString());
 
             Log.d(TAG,"Turn on laser");
@@ -375,11 +425,11 @@ public class YourService extends KiboRpcService {
                 )
         );
     }
-    Quaternion euler_to_quaternion(double yaw,double pitch,double roll){
-        Double qx = Math.sin(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) + Math.cos(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
-        Double qy = Math.cos(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2) - Math.sin(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2);
-        Double qz = Math.cos(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2) + Math.sin(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2);
-        Double qw = Math.cos(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) - Math.sin(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
+    Quaternion euler_to_quaternion(double roll,double pitch,double yaw){
+        Double qx = Math.sin(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) - Math.cos(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
+        Double qy = Math.cos(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2);
+        Double qz = Math.cos(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2) - Math.sin(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2);
+        Double qw = Math.cos(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
 //        Double qx = Math.sin(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) - Math.cos(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
 //        Double qy = Math.cos(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2);
 //        Double qz = Math.cos(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2) - Math.sin(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2);
