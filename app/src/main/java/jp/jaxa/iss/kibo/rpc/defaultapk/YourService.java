@@ -132,21 +132,24 @@ public class YourService extends KiboRpcService {
             //double pitch = 0;
             //double roll = Math.atan(dy/980);
 
-            double yaw = 0;
-            double pitch = 0;
-            double roll = 0;
+            double yaw = -83.683;
+            double pitch = -0.001;
+            double roll = -18.695;
 
             //yaw = Math.atan(dx/(970*6))*5;
 
             //k is a experienced-const
-            double k = 0;
-            k = Math.abs(5.8/(dx/100));
-            Log.d(TAG,"The const-k:"+k);
+            double k1 = 0;
+            k1 = Math.abs(5.9/(dx/100));
+            Log.d(TAG,"The const-k1:"+k1);
 
-            yaw = dx>0?-0.5*Math.PI+Math.atan(Math.abs(dx)/(970*6))*k:-0.5*Math.PI-Math.atan(Math.abs(dx)/(970*6))*k;
+            double k2 = 0;
+            k2 = Math.abs(5.8/(dx/100));
+            Log.d(TAG,"The const-k1:"+k2);
 
-            //roll = dy>0?-Math.atan(Math.abs(dy)/(970*6))*k:Math.atan(Math.abs(dy)/(970*6))*k;
+            //yaw = dx>0?-0.5*Math.PI+Math.atan(Math.abs(dx)/(970*6))*k1:-0.5*Math.PI-Math.atan(Math.abs(dx)/(970*6))*k1;
 
+            //roll = dy>0?-Math.atan(Math.abs(dy)/(970*6))*k2:Math.atan(Math.abs(dy)/(970*6))*k2;
 
             //還沒轉之前
             Quaternion no_fix = api.getTrustedRobotKinematics().getOrientation();
@@ -154,6 +157,8 @@ public class YourService extends KiboRpcService {
             Log.d(TAG,"Yaw:"+yaw+" Pitch:"+pitch+" Roll:"+roll);
             Quaternion q = euler_to_quaternion(roll,pitch,yaw);
             Log.d(TAG,"The Qu "+q.toString());
+
+            //Quaternion q = new Quaternion(-0.121f,-0.108f,-0.658f, 0.735f);
 
 //            double sx = api.getTrustedRobotKinematics().getPosition().getX();
 //            double sy = api.getTrustedRobotKinematics().getPosition().getY();
@@ -165,7 +170,6 @@ public class YourService extends KiboRpcService {
 
             Point s =api.getTrustedRobotKinematics().getPosition();
 
-//            左右的轉動 向上平移
             new MoveTask().execute(
                     new MoveTaskParameters(
                             api,
@@ -180,7 +184,6 @@ public class YourService extends KiboRpcService {
 
 
             Log.d(TAG,"Rotation Finish : "+api.getTrustedRobotKinematics().getOrientation().toString());
-
             Log.d(TAG,"Turn on laser");
             api.laserControl(true);
             api.takeSnapshot();
@@ -425,16 +428,43 @@ public class YourService extends KiboRpcService {
                 )
         );
     }
-    Quaternion euler_to_quaternion(double roll,double pitch,double yaw){
-        Double qx = Math.sin(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) - Math.cos(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
-        Double qy = Math.cos(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2);
-        Double qz = Math.cos(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2) - Math.sin(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2);
-        Double qw = Math.cos(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
+//    Quaternion euler_to_quaternion(double roll,double pitch,double yaw){
+//
+//        double sin_roll = Math.sin(roll/2);
+//        double cos_roll = Math.cos(roll/2);
+//
 //        Double qx = Math.sin(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) - Math.cos(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
 //        Double qy = Math.cos(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2);
 //        Double qz = Math.cos(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2) - Math.sin(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2);
 //        Double qw = Math.cos(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
-        return new Quaternion(qx.floatValue(),qy.floatValue(),qz.floatValue(),qw.floatValue());
+//        Double qx = Math.sin(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) - Math.cos(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
+//        Double qy = Math.cos(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2);
+//        Double qz = Math.cos(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2) - Math.sin(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2);
+//        Double qw = Math.cos(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
+//        return new Quaternion(qx.floatValue(),qy.floatValue(),qz.floatValue(),qw.floatValue());
+//    }
+
+    public Quaternion euler_to_quaternion (double roll, double pitch, double yaw) {
+        final float hr = (float)roll * 0.5f;
+        final float shr = (float)Math.sin(hr);
+        final float chr = (float)Math.cos(hr);
+        final float hp = (float)pitch * 0.5f;
+        final float shp = (float)Math.sin(hp);
+        final float chp = (float)Math.cos(hp);
+        final float hy = (float)yaw * 0.5f;
+        final float shy = (float)Math.sin(hy);
+        final float chy = (float)Math.cos(hy);
+        final float chy_shp = chy * shp;
+        final float shy_chp = shy * chp;
+        final float chy_chp = chy * chp;
+        final float shy_shp = shy * shp;
+
+        float x = (chy_shp * chr) + (shy_chp * shr); // cos(yaw/2) * sin(pitch/2) * cos(roll/2) + sin(yaw/2) * cos(pitch/2) * sin(roll/2)
+        float y = (shy_chp * chr) - (chy_shp * shr); // sin(yaw/2) * cos(pitch/2) * cos(roll/2) - cos(yaw/2) * sin(pitch/2) * sin(roll/2)
+        float z = (chy_chp * shr) - (shy_shp * chr); // cos(yaw/2) * cos(pitch/2) * sin(roll/2) - sin(yaw/2) * sin(pitch/2) * cos(roll/2)
+        float w = (chy_chp * chr) + (shy_shp * shr); // cos(yaw/2) * cos(pitch/2) * cos(roll/2) + sin(yaw/2) * sin(pitch/2) * sin(roll/2)
+
+        return new Quaternion(x,y,z,w);
     }
 }
 
