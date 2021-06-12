@@ -54,7 +54,7 @@ public class YourService extends KiboRpcService {
         while (qrStrBuilder.length()==0 && time<retry_MAX){
             time++;
             // Scan QR Code
-            moveToPoint(new Point(11.21,-10,5));
+            //moveToPoint(new Point(11.21,-10,5));
             qrStrBuilder.append(scanQrCode());
         }
         boolean decodeSucceeded = false;
@@ -132,30 +132,36 @@ public class YourService extends KiboRpcService {
             //double pitch = 0;
             //double roll = Math.atan(dy/980);
 
-            double yaw = -83.683;
-            double pitch = -0.001;
-            double roll = -18.695;
+            double pitch = 0;
+            double roll = 0;
+
 
             //yaw = Math.atan(dx/(970*6))*5;
 
             //k is a experienced-const
-            double k1 = 0;
-            k1 = Math.abs(5.9/(dx/100));
+
+            final double k1 = Math.abs(4.9/(dx/100));
             Log.d(TAG,"The const-k1:"+k1);
 
-            double k2 = 0;
-            k2 = Math.abs(5.8/(dx/100));
-            Log.d(TAG,"The const-k1:"+k2);
 
-            //yaw = dx>0?-0.5*Math.PI+Math.atan(Math.abs(dx)/(970*6))*k1:-0.5*Math.PI-Math.atan(Math.abs(dx)/(970*6))*k1;
+            final double k2 = Math.abs(4.2/(dx/100));
+            Log.d(TAG,"The const-k2:"+k2);
 
-            //roll = dy>0?-Math.atan(Math.abs(dy)/(970*6))*k2:Math.atan(Math.abs(dy)/(970*6))*k2;
+            final double yaw = dx>0?-0.5*Math.PI+Math.atan(Math.abs(dx)/(970*6))*k1:-0.5*Math.PI-Math.atan(Math.abs(dx)/(970*6))*k1;
+
+            //final double roll = dy>0?-Math.atan(Math.abs(dy)/(970*6))*k2:Math.atan(Math.abs(dy)/(970*6))*k2;
 
             //還沒轉之前
             Quaternion no_fix = api.getTrustedRobotKinematics().getOrientation();
+
             Log.d(TAG,"Haven't fix "+no_fix.toString());
+
+            Log.d(TAG,"Yaw in degree:"+yaw*(180/Math.PI)+" Pitch:"+pitch*(180/Math.PI)+" Roll:"+roll*(180/Math.PI));
+
             Log.d(TAG,"Yaw:"+yaw+" Pitch:"+pitch+" Roll:"+roll);
-            Quaternion q = euler_to_quaternion(roll,pitch,yaw);
+
+            final Quaternion q = euler_to_quaternion(roll,pitch,yaw,koz_pattern);
+
             Log.d(TAG,"The Qu "+q.toString());
 
             //Quaternion q = new Quaternion(-0.121f,-0.108f,-0.658f, 0.735f);
@@ -168,20 +174,19 @@ public class YourService extends KiboRpcService {
 //
 //            api.relativeMoveTo(s,q,ENABLE_PRINT_ROBOT_LOCATION);
 
-            Point s =api.getTrustedRobotKinematics().getPosition();
+            final Point s =api.getTrustedRobotKinematics().getPosition();
 
-            new MoveTask().execute(
-                    new MoveTaskParameters(
-                            api,
-                            s,
-                            q,
-                            LOOP_MAX,
-                            ENABLE_PRINT_ROBOT_LOCATION
-                    )
-            );
+            api.moveTo(s,q,ENABLE_PRINT_ROBOT_LOCATION);
 
-
-
+//            new MoveTask().execute(
+//                    new MoveTaskParameters(
+//                            api,
+//                            s,
+//                            q,
+//                            LOOP_MAX,
+//                            ENABLE_PRINT_ROBOT_LOCATION
+//                    )
+//            );
 
             Log.d(TAG,"Rotation Finish : "+api.getTrustedRobotKinematics().getOrientation().toString());
             Log.d(TAG,"Turn on laser");
@@ -428,43 +433,49 @@ public class YourService extends KiboRpcService {
                 )
         );
     }
-//    Quaternion euler_to_quaternion(double roll,double pitch,double yaw){
-//
-//        double sin_roll = Math.sin(roll/2);
-//        double cos_roll = Math.cos(roll/2);
-//
-//        Double qx = Math.sin(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) - Math.cos(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
-//        Double qy = Math.cos(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2);
-//        Double qz = Math.cos(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2) - Math.sin(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2);
-//        Double qw = Math.cos(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
-//        Double qx = Math.sin(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) - Math.cos(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
-//        Double qy = Math.cos(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2);
-//        Double qz = Math.cos(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2) - Math.sin(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2);
-//        Double qw = Math.cos(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
-//        return new Quaternion(qx.floatValue(),qy.floatValue(),qz.floatValue(),qw.floatValue());
-//    }
+    public Quaternion euler_to_quaternion (double roll, double pitch, double yaw, double KOZ){
 
-    public Quaternion euler_to_quaternion (double roll, double pitch, double yaw) {
-        final float hr = (float)roll * 0.5f;
-        final float shr = (float)Math.sin(hr);
-        final float chr = (float)Math.cos(hr);
-        final float hp = (float)pitch * 0.5f;
-        final float shp = (float)Math.sin(hp);
-        final float chp = (float)Math.cos(hp);
-        final float hy = (float)yaw * 0.5f;
-        final float shy = (float)Math.sin(hy);
-        final float chy = (float)Math.cos(hy);
-        final float chy_shp = chy * shp;
-        final float shy_chp = shy * chp;
-        final float chy_chp = chy * chp;
-        final float shy_shp = shy * shp;
+        final float sin_roll = (float)Math.sin(roll*0.5f);
+        final float cos_roll = (float)Math.cos(roll*0.5f);
 
-        float x = (chy_shp * chr) + (shy_chp * shr); // cos(yaw/2) * sin(pitch/2) * cos(roll/2) + sin(yaw/2) * cos(pitch/2) * sin(roll/2)
-        float y = (shy_chp * chr) - (chy_shp * shr); // sin(yaw/2) * cos(pitch/2) * cos(roll/2) - cos(yaw/2) * sin(pitch/2) * sin(roll/2)
-        float z = (chy_chp * shr) - (shy_shp * chr); // cos(yaw/2) * cos(pitch/2) * sin(roll/2) - sin(yaw/2) * sin(pitch/2) * cos(roll/2)
-        float w = (chy_chp * chr) + (shy_shp * shr); // cos(yaw/2) * cos(pitch/2) * cos(roll/2) + sin(yaw/2) * sin(pitch/2) * sin(roll/2)
+        final float sin_pitch = (float)Math.sin(pitch*0.5f);
+        final float cos_pitch = (float)Math.cos(pitch*0.5f);
 
-        return new Quaternion(x,y,z,w);
+        final float sin_yaw = (float)Math.sin(yaw*0.5f);
+        final float cos_yaw = (float)Math.cos(yaw*0.5f);
+
+        float multi = KOZ>=5?1:-1;
+
+        float qx = sin_roll * cos_pitch * cos_yaw - cos_roll * sin_pitch * sin_yaw * multi;
+        float qy = cos_roll * sin_pitch * cos_yaw + sin_roll * cos_pitch * sin_yaw * multi;
+        float qz = cos_roll * cos_pitch * sin_yaw - sin_roll * sin_pitch * cos_yaw * multi;
+        float qw = cos_roll * cos_pitch * cos_yaw + sin_roll * sin_pitch * sin_yaw * multi;
+
+        return new Quaternion(qx,qy,qz,qw);
     }
-}
+
+//    public Quaternion euler_to_quaternion (double roll, double pitch, double yaw, int KOZ) {
+//        final float hr = (float)roll * 0.5f;
+//        final float shr = (float)Math.sin(hr);
+//        final float chr = (float)Math.cos(hr);
+//        final float hp = (float)pitch * 0.5f;
+//        final float shp = (float)Math.sin(hp);
+//        final float chp = (float)Math.cos(hp);
+//        final float hy = (float)yaw * 0.5f;
+//        final float shy = (float)Math.sin(hy);
+//        final float chy = (float)Math.cos(hy);
+//        final float chy_shp = chy * shp;
+//        final float shy_chp = shy * chp;
+//        final float chy_chp = chy * chp;
+//        final float shy_shp = shy * shp;
+//
+//        float multi = KOZ>=5?-1:1;
+//        float x = (chy_shp * chr) + (shy_chp * shr)*multi; // cos(yaw/2) * sin(pitch/2) * cos(roll/2) + sin(yaw/2) * cos(pitch/2) * sin(roll/2)
+//        float y = (shy_chp * chr) - (chy_shp * shr)*multi; // sin(yaw/2) * cos(pitch/2) * cos(roll/2) - cos(yaw/2) * sin(pitch/2) * sin(roll/2)
+//        float z = (chy_chp * shr) - (shy_shp * chr)*multi; // cos(yaw/2) * cos(pitch/2) * sin(roll/2) - sin(yaw/2) * sin(pitch/2) * cos(roll/2)
+//        float w = (chy_chp * chr) + (shy_shp * shr)*multi; // cos(yaw/2) * cos(pitch/2) * cos(roll/2) + sin(yaw/2) * sin(pitch/2) * sin(roll/2)
+//
+//        return new Quaternion(x,y,z,w);
+//    }
+    }
 
