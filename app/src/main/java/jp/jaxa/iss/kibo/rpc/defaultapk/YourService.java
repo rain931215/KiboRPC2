@@ -3,7 +3,6 @@ package jp.jaxa.iss.kibo.rpc.defaultapk;
 import android.graphics.Bitmap;
 import android.util.Log;
 
-import org.apache.commons.lang.ObjectUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.opencv.aruco.Aruco;
@@ -13,13 +12,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import gov.nasa.arc.astrobee.Result;
 import gov.nasa.arc.astrobee.types.Point;
 import gov.nasa.arc.astrobee.types.Quaternion;
 import jp.jaxa.iss.kibo.rpc.api.KiboRpcService;
-import jp.jaxa.iss.kibo.rpc.defaultapk.pathfinder.PathFinder;
-import jp.jaxa.iss.kibo.rpc.defaultapk.pathfinder.Node;
-
-import jp.jaxa.iss.kibo.rpc.defaultapk.Tasks.*;
+import jp.jaxa.iss.kibo.rpc.defaultapk.Tasks.MoveTask;
+import jp.jaxa.iss.kibo.rpc.defaultapk.Tasks.MoveTaskParameters;
+import jp.jaxa.iss.kibo.rpc.defaultapk.Tasks.ScanTask;
 
 /**
  * Class meant to handle commands from the Ground Data System and execute them in Astrobee
@@ -28,7 +27,7 @@ import jp.jaxa.iss.kibo.rpc.defaultapk.Tasks.*;
 public class YourService extends KiboRpcService {
     public static final String TAG = "KiboAPP";
     private static final boolean ENABLE_PRINT_ROBOT_LOCATION = true;
-    private static final int LOOP_MAX = 5;
+    private static final int LOOP_MAX = 10;
     private static final Quaternion generalQuaternion = new Quaternion(0, 0, -0.707f, 0.707f);
     // 10.3 to 11.55
     private static final double minX = 10.35;
@@ -43,6 +42,7 @@ public class YourService extends KiboRpcService {
     protected void runPlan1() {
         api.startMission();
 
+        Log.d(TAG,"Rain's Ver 3");
         Log.d(TAG,"Max Ram"+Runtime.getRuntime().maxMemory());
         // Move To A Point
         moveToPointA();
@@ -116,40 +116,18 @@ public class YourService extends KiboRpcService {
             // 6.875 pixel is 1 cm
             // Screen is H:960 W:1280 Center:(640,480)
             // dx dy is cm
-            //actually,the ture center is (699.64,497.1)
+            //actually,the true center is (699.64,497.1)
 
-            double dx = (targetPixelX-699.64);
-            double dy = (targetPixelY-497.1);
+            double dx = (targetPixelX-699.64) / 6.875;
+            double dy = (targetPixelY-497.1) / 6.875;
+
             Log.d(TAG,"Target dX:"+dx+" dY:"+dy);
 
-            // unit is m
-            //double yaw = Math.atan(dx/100/9.8)-0.5*Math.PI;
-            //double pitch = 0;
-            //double roll = Math.atan(dy/100/9.8);
+            double robot_to_wall = 0.792;
 
-
-            //double yaw = Math.atan(dx/980)-Math.PI*0.5;
-            //double pitch = 0;
-            //double roll = Math.atan(dy/980);
-
-            double yaw = -83.683;
-            double pitch = -0.001;
-            double roll = -18.695;
-
-            //yaw = Math.atan(dx/(970*6))*5;
-
-            //k is a experienced-const
-            double k1 = 0;
-            k1 = Math.abs(5.9/(dx/100));
-            Log.d(TAG,"The const-k1:"+k1);
-
-            double k2 = 0;
-            k2 = Math.abs(5.8/(dx/100));
-            Log.d(TAG,"The const-k1:"+k2);
-
-            //yaw = dx>0?-0.5*Math.PI+Math.atan(Math.abs(dx)/(970*6))*k1:-0.5*Math.PI-Math.atan(Math.abs(dx)/(970*6))*k1;
-
-            //roll = dy>0?-Math.atan(Math.abs(dy)/(970*6))*k2:Math.atan(Math.abs(dy)/(970*6))*k2;
+            double roll = Math.atan2(dx/100,robot_to_wall)-0.5*Math.PI;
+            double pitch = 0;
+            double yaw = -Math.atan2(dy/100,robot_to_wall);
 
             //還沒轉之前
             Quaternion no_fix = api.getTrustedRobotKinematics().getOrientation();
@@ -158,30 +136,16 @@ public class YourService extends KiboRpcService {
             Quaternion q = euler_to_quaternion(roll,pitch,yaw);
             Log.d(TAG,"The Qu "+q.toString());
 
-            //Quaternion q = new Quaternion(-0.121f,-0.108f,-0.658f, 0.735f);
-
-//            double sx = api.getTrustedRobotKinematics().getPosition().getX();
-//            double sy = api.getTrustedRobotKinematics().getPosition().getY();
-//            double sz = api.getTrustedRobotKinematics().getPosition().getZ();
-//
-//            Point s = new Point(sx,sy,sz-dy/6);
-//
-//            api.relativeMoveTo(s,q,ENABLE_PRINT_ROBOT_LOCATION);
-
-            Point s =api.getTrustedRobotKinematics().getPosition();
-
-            new MoveTask().execute(
-                    new MoveTaskParameters(
-                            api,
-                            s,
-                            q,
-                            LOOP_MAX,
-                            ENABLE_PRINT_ROBOT_LOCATION
-                    )
-            );
-
-
-
+            Result result = api.moveTo(a_prime, q, ENABLE_PRINT_ROBOT_LOCATION);
+            Quaternion resultQu = api.getTrustedRobotKinematics().getOrientation();
+            int loopCounter = 0;
+            while ((!result.hasSucceeded() || resultQu.getX()-q.getX()>=0.01 || resultQu.getY()-q.getY()>=0.01 || resultQu.getZ()-q.getZ()>=0.01)
+                    && loopCounter < 40) {
+                Log.d(TAG,"Retry to rotation");
+                result = api.moveTo(a_prime, q, ENABLE_PRINT_ROBOT_LOCATION);
+                resultQu = api.getTrustedRobotKinematics().getOrientation();
+                ++loopCounter;
+            }
 
             Log.d(TAG,"Rotation Finish : "+api.getTrustedRobotKinematics().getOrientation().toString());
             Log.d(TAG,"Turn on laser");
@@ -327,84 +291,6 @@ public class YourService extends KiboRpcService {
         }
     }
 
-    public void moveToPointWithNavigation(Point goalPoint, Quaternion quaternion, boolean printRobotPosition) {
-        Point p = api.getRobotKinematics().getPosition();
-        PathFinder.Vec3d currentPos = new PathFinder.Vec3d(p.getX(), p.getY(), p.getZ());
-        PathFinder finder1 = new PathFinder(currentPos, new PathFinder.Vec3d(goalPoint.getX(), goalPoint.getY(), goalPoint.getZ()), pointPos -> true);
-
-        List<Node> successNodes = finder1.calculatePath();
-//        PathFinder finder2 = new PathFinder(new PathFinder.Vec3d(goalPoint.getX(), goalPoint.getY(), goalPoint.getZ()), currentPos, this);
-//        final List<List<Node>> successNodesList = new ArrayList<>();
-//        final boolean[] reverse = new boolean[1];
-//        Thread main = Thread.currentThread();
-//        Thread[] threads = new Thread[2];
-//        threads[0] = new Thread(() -> {
-//            Log.d(TAG, "[PathFinder] PathFinder Thread A Started");
-//            List<Node> nodes = finder1.calculatePath();
-//            Log.d(TAG, "[PathFinder] PathFinder Thread A Calculated");
-//            if (nodes != null && successNodesList.size() == 0) {
-//                successNodesList.add(nodes);
-//                reverse[0] = false;
-//                Log.d(TAG, "[PathFinder] PathFinder Thread A Finished L:" + nodes.size());
-//                synchronized (main) {
-//                    main.notify();
-//                }
-//            }
-//        });
-//        threads[1] = new Thread(() -> {
-//            Log.d(TAG, "[PathFinder] PathFinder Thread B Started");
-//            List<Node> nodes = finder2.calculatePath();
-//            Log.d(TAG, "[PathFinder] PathFinder Thread B Calculated");
-//            if (nodes != null && successNodesList.size() == 0) {
-//                successNodesList.add(nodes);
-//                reverse[0] = true;
-//                Log.d(TAG, "[PathFinder] PathFinder Thread B Finished L:" + nodes.size());
-//                synchronized (main) {
-//                    main.notify();
-//                }
-//            }
-//        });
-//        Log.d(TAG, "[PathFinder] Starting PathFinder's Thread");
-//        threads[0].start();
-//        //threads[1].start();
-//        Log.d(TAG, "[PathFinder] Started PathFinder's Thread");
-//        synchronized (main) {
-//            try {
-//                Log.d(TAG, "[PathFinder] Main Thread Entered To Wait State");
-//                main.wait();
-//                Log.d(TAG, "[PathFinder] Main Thread Recovered From Wait State");
-//            } catch (InterruptedException e) {
-//                e.printStackTrace();
-//            }
-//        }
-//
-//        List<Node> successNodes = successNodesList.get(0);
-        if (successNodes.size() > 0) {
-            Log.d(TAG, "[PathFinder] Founded Path,Generating Full");
-            successNodes = sortNodes(successNodes);
-            for (int i = successNodes.size() - 1; i != 0; i--) {
-                double dx, dy, dz;
-                PathFinder.Vec3d nodePos = successNodes.get(i).getPos();
-                //if (reverse[0]) {
-                if (false) {
-                    dx = goalPoint.getX() + nodePos.getX();
-                    dy = goalPoint.getY() + nodePos.getY();
-                    dz = goalPoint.getZ() + nodePos.getZ();
-                } else {
-                    dx = currentPos.getX() + nodePos.getX();
-                    dy = currentPos.getY() + nodePos.getY();
-                    dz = currentPos.getZ() + nodePos.getZ();
-                }
-                Log.d(TAG, "PathFinder Move To " + dx + " " + dy + " " + dz);
-                api.moveTo(new Point(dx, dy, dz), quaternion, printRobotPosition);
-            }
-        }
-    }
-
-    public List<Node> sortNodes(List<Node> nodes) {
-        return nodes;
-    }
-
     public void moveToPoint(Point point){
         if(point.getX()<=minX || point.getX()>=maxX){
             Log.d(TAG,"[Move] Point's x is out of KIZ: "+point.getX());
@@ -428,43 +314,14 @@ public class YourService extends KiboRpcService {
                 )
         );
     }
-//    Quaternion euler_to_quaternion(double roll,double pitch,double yaw){
-//
-//        double sin_roll = Math.sin(roll/2);
-//        double cos_roll = Math.cos(roll/2);
-//
-//        Double qx = Math.sin(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) - Math.cos(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
-//        Double qy = Math.cos(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2);
-//        Double qz = Math.cos(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2) - Math.sin(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2);
-//        Double qw = Math.cos(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
-//        Double qx = Math.sin(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) - Math.cos(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
-//        Double qy = Math.cos(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2);
-//        Double qz = Math.cos(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2) - Math.sin(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2);
-//        Double qw = Math.cos(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) + Math.sin(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
-//        return new Quaternion(qx.floatValue(),qy.floatValue(),qz.floatValue(),qw.floatValue());
-//    }
 
-    public Quaternion euler_to_quaternion (double roll, double pitch, double yaw) {
-        final float hr = (float)roll * 0.5f;
-        final float shr = (float)Math.sin(hr);
-        final float chr = (float)Math.cos(hr);
-        final float hp = (float)pitch * 0.5f;
-        final float shp = (float)Math.sin(hp);
-        final float chp = (float)Math.cos(hp);
-        final float hy = (float)yaw * 0.5f;
-        final float shy = (float)Math.sin(hy);
-        final float chy = (float)Math.cos(hy);
-        final float chy_shp = chy * shp;
-        final float shy_chp = shy * chp;
-        final float chy_chp = chy * chp;
-        final float shy_shp = shy * shp;
+    static Quaternion euler_to_quaternion (double roll, double pitch, double yaw) {
+        double qx = Math.sin(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) + Math.cos(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
+        double qy = Math.cos(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2) - Math.sin(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2);
+        double qz = Math.cos(roll/2) * Math.cos(pitch/2) * Math.sin(yaw/2) + Math.sin(roll/2) * Math.sin(pitch/2) * Math.cos(yaw/2);
+        double qw = Math.cos(roll/2) * Math.cos(pitch/2) * Math.cos(yaw/2) - Math.sin(roll/2) * Math.sin(pitch/2) * Math.sin(yaw/2);
 
-        float x = (chy_shp * chr) + (shy_chp * shr); // cos(yaw/2) * sin(pitch/2) * cos(roll/2) + sin(yaw/2) * cos(pitch/2) * sin(roll/2)
-        float y = (shy_chp * chr) - (chy_shp * shr); // sin(yaw/2) * cos(pitch/2) * cos(roll/2) - cos(yaw/2) * sin(pitch/2) * sin(roll/2)
-        float z = (chy_chp * shr) - (shy_shp * chr); // cos(yaw/2) * cos(pitch/2) * sin(roll/2) - sin(yaw/2) * sin(pitch/2) * cos(roll/2)
-        float w = (chy_chp * chr) + (shy_shp * shr); // cos(yaw/2) * cos(pitch/2) * cos(roll/2) + sin(yaw/2) * sin(pitch/2) * sin(roll/2)
-
-        return new Quaternion(x,y,z,w);
+        return new Quaternion((float)qz,(float)qy,(float)qx,(float)qw);
     }
 }
 
