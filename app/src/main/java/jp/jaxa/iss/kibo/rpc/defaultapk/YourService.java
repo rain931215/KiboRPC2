@@ -1,9 +1,10 @@
 package jp.jaxa.iss.kibo.rpc.defaultapk;
 
 import android.graphics.Bitmap;
+//import android.nfc.Tag;
 import android.util.Log;
 
-import org.apache.commons.lang.ObjectUtils;
+//import org.apache.commons.lang.ObjectUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.opencv.aruco.Aruco;
@@ -16,8 +17,8 @@ import java.util.List;
 import gov.nasa.arc.astrobee.types.Point;
 import gov.nasa.arc.astrobee.types.Quaternion;
 import jp.jaxa.iss.kibo.rpc.api.KiboRpcService;
-import jp.jaxa.iss.kibo.rpc.defaultapk.pathfinder.PathFinder;
-import jp.jaxa.iss.kibo.rpc.defaultapk.pathfinder.Node;
+//import jp.jaxa.iss.kibo.rpc.defaultapk.pathfinder.PathFinder;
+//import jp.jaxa.iss.kibo.rpc.defaultapk.pathfinder.Node;
 
 import jp.jaxa.iss.kibo.rpc.defaultapk.Tasks.*;
 
@@ -27,6 +28,7 @@ import jp.jaxa.iss.kibo.rpc.defaultapk.Tasks.*;
 
 public class YourService extends KiboRpcService {
     public static final String TAG = "KiboAPP";
+    public static final String TAG2 = "Laser Aiming";
     private static final boolean ENABLE_PRINT_ROBOT_LOCATION = true;
     private static final int LOOP_MAX = 5;
     private static final Quaternion generalQuaternion = new Quaternion(0, 0, -0.707f, 0.707f);
@@ -54,7 +56,7 @@ public class YourService extends KiboRpcService {
         while (qrStrBuilder.length()==0 && time<retry_MAX){
             time++;
             // Scan QR Code
-            //moveToPoint(new Point(11.21,-10,5));
+            moveToPoint(new Point(11.21,-10,5));
             qrStrBuilder.append(scanQrCode());
         }
         boolean decodeSucceeded = false;
@@ -67,12 +69,13 @@ public class YourService extends KiboRpcService {
             try {
                 JSONObject qrJson = new JSONObject(qrStr);
                 koz_pattern = qrJson.getInt("p");
-                a_prime = new Point(qrJson.getDouble("x"), qrJson.getDouble("y"), qrJson.getDouble("z"));
+                a_prime = new Point(qrJson.getDouble("x"), qrJson.getDouble("y")-0.15, qrJson.getDouble("z"));
                 decodeSucceeded = true;
             } catch (JSONException e) {
                 e.printStackTrace();
             }
         }
+
 
 
         if (decodeSucceeded) {
@@ -84,17 +87,21 @@ public class YourService extends KiboRpcService {
             Log.d(TAG,"Scan AR Tag Start");
             List<Mat> arucoCorners = new ArrayList<>();
 
-            //Point p = api.getTrustedRobotKinematics().getPosition();
+            //final Point p = api.getTrustedRobotKinematics().getPosition();
             Mat arucoIDs = new Mat();
+
             Aruco.detectMarkers(
                     api.getMatNavCam(),
                     Aruco.getPredefinedDictionary(Aruco.DICT_5X5_250),
                     arucoCorners,
                     arucoIDs);
+
             Log.d(TAG,"Scan AR Tag Finish");
             Log.d(TAG,"AR Tag ID List Length: "+arucoIDs.size());
+
             double targetPixelX = 0;
             double targetPixelY = 0;
+
             for (int i=0;i<arucoIDs.size().height;i++) {
                 Mat mat = arucoCorners.get(i); // 1 row 4 column(1 LeftUp 2 RightUp 3 RightDown 4 LeftDown)
                 double[] pixelLeftUp = mat.get(0,0);
@@ -111,7 +118,7 @@ public class YourService extends KiboRpcService {
             targetPixelY/=16;
             //targetPixelY = targetPixelY>0?targetPixelY+5:targetPixelY-5;
 
-            Log.d(TAG,"Target X:"+targetPixelX+" Y:"+targetPixelY);
+            Log.d(TAG2,"Target X:"+targetPixelX+" Y:"+targetPixelY);
 
             // 6.875 pixel is 1 cm
             // Screen is H:960 W:1280 Center:(640,480)
@@ -120,7 +127,7 @@ public class YourService extends KiboRpcService {
 
             double dx = (targetPixelX-699.64);
             double dy = (targetPixelY-497.1);
-            Log.d(TAG,"Target dX:"+dx+" dY:"+dy);
+            Log.d(TAG2,"Target dX:"+dx+" dY:"+dy);
 
             // unit is m
             //double yaw = Math.atan(dx/100/9.8)-0.5*Math.PI;
@@ -128,55 +135,46 @@ public class YourService extends KiboRpcService {
             //double roll = Math.atan(dy/100/9.8);
 
 
+
             //double yaw = Math.atan(dx/980)-Math.PI*0.5;
             //double pitch = 0;
             //double roll = Math.atan(dy/980);
 
-            double pitch = 0;
-            double roll = 0;
+            final double pitch = 0;
+
 
 
             //yaw = Math.atan(dx/(970*6))*5;
 
             //k is a experienced-const
 
-            final double k1 = Math.abs(4.9/(dx/100));
-            Log.d(TAG,"The const-k1:"+k1);
+            final double k1 = Math.abs(5.4/(dx/100));
+            Log.d(TAG2,"The const-k1:"+k1);
 
 
             final double k2 = Math.abs(4.2/(dx/100));
-            Log.d(TAG,"The const-k2:"+k2);
+
+            Log.d(TAG2,"The const-k2:"+k2);
 
             final double yaw = dx>0?-0.5*Math.PI+Math.atan(Math.abs(dx)/(970*6))*k1:-0.5*Math.PI-Math.atan(Math.abs(dx)/(970*6))*k1;
 
-            //final double roll = dy>0?-Math.atan(Math.abs(dy)/(970*6))*k2:Math.atan(Math.abs(dy)/(970*6))*k2;
+            final double roll = dy>0?-Math.atan(Math.abs(dy)/(970*6))*k2:Math.atan(Math.abs(dy)/(970*6))*k2;
 
             //還沒轉之前
-            Quaternion no_fix = api.getTrustedRobotKinematics().getOrientation();
+            Log.d(TAG2,"Yaw in degree:"+yaw*(180/Math.PI)+" Pitch:"+pitch*(180/Math.PI)+" Roll:"+roll*(180/Math.PI));
 
-            Log.d(TAG,"Haven't fix "+no_fix.toString());
+            Log.d(TAG2,"Yaw:"+yaw+" Pitch:"+pitch+" Roll:"+roll);
 
-            Log.d(TAG,"Yaw in degree:"+yaw*(180/Math.PI)+" Pitch:"+pitch*(180/Math.PI)+" Roll:"+roll*(180/Math.PI));
-
-            Log.d(TAG,"Yaw:"+yaw+" Pitch:"+pitch+" Roll:"+roll);
-
-            final Quaternion q = euler_to_quaternion(roll,pitch,yaw,koz_pattern);
-
-            Log.d(TAG,"The Qu "+q.toString());
-
-            //Quaternion q = new Quaternion(-0.121f,-0.108f,-0.658f, 0.735f);
-
-//            double sx = api.getTrustedRobotKinematics().getPosition().getX();
-//            double sy = api.getTrustedRobotKinematics().getPosition().getY();
-//            double sz = api.getTrustedRobotKinematics().getPosition().getZ();
-//
-//            Point s = new Point(sx,sy,sz-dy/6);
-//
-//            api.relativeMoveTo(s,q,ENABLE_PRINT_ROBOT_LOCATION);
 
             final Point s =api.getTrustedRobotKinematics().getPosition();
+            Log.d(TAG2,"The current position to aim the target");
 
-            api.moveTo(s,q,ENABLE_PRINT_ROBOT_LOCATION);
+
+            final Quaternion q = euler_to_quaternion(roll,pitch,yaw,a_prime);
+
+            Log.d(TAG2,"The Quaternion to rotate "+q.toString());
+
+            api.moveTo(a_prime,q,ENABLE_PRINT_ROBOT_LOCATION);
 
 //            new MoveTask().execute(
 //                    new MoveTaskParameters(
@@ -188,12 +186,12 @@ public class YourService extends KiboRpcService {
 //                    )
 //            );
 
-            Log.d(TAG,"Rotation Finish : "+api.getTrustedRobotKinematics().getOrientation().toString());
-            Log.d(TAG,"Turn on laser");
+            Log.d(TAG2,"Rotation Finish");
+            Log.d(TAG2,"Turn on laser");
             api.laserControl(true);
             api.takeSnapshot();
             api.laserControl(false);
-            Log.d(TAG,"Turn off laser");
+            Log.d(TAG2,"Turn off laser");
 
             Log.d(TAG, "Move To B Start");
             moveToPointB(a_prime,koz_pattern);
@@ -204,6 +202,8 @@ public class YourService extends KiboRpcService {
         Log.d(TAG, "Report Mission Completion");
         api.reportMissionCompletion();
     }
+
+
 
     public void moveToPointA() {
         moveToPoint(new Point(11.21,-9.8,5));
@@ -317,8 +317,8 @@ public class YourService extends KiboRpcService {
                 moved=true;
                 break;
             case 8:
-                moveToPoint(new Point(x,y,5.54));
-                moveToPoint(new Point(10.5,y,5.54));
+                moveToPoint(new Point(x,y,z-0.31<=4.31?4.31:z-0.31));
+                moveToPoint(new Point(10.5,y,z-0.31));
                 moved=true;
                 break;
             default:
@@ -332,83 +332,6 @@ public class YourService extends KiboRpcService {
         }
     }
 
-    public void moveToPointWithNavigation(Point goalPoint, Quaternion quaternion, boolean printRobotPosition) {
-        Point p = api.getRobotKinematics().getPosition();
-        PathFinder.Vec3d currentPos = new PathFinder.Vec3d(p.getX(), p.getY(), p.getZ());
-        PathFinder finder1 = new PathFinder(currentPos, new PathFinder.Vec3d(goalPoint.getX(), goalPoint.getY(), goalPoint.getZ()), pointPos -> true);
-
-        List<Node> successNodes = finder1.calculatePath();
-//        PathFinder finder2 = new PathFinder(new PathFinder.Vec3d(goalPoint.getX(), goalPoint.getY(), goalPoint.getZ()), currentPos, this);
-//        final List<List<Node>> successNodesList = new ArrayList<>();
-//        final boolean[] reverse = new boolean[1];
-//        Thread main = Thread.currentThread();
-//        Thread[] threads = new Thread[2];
-//        threads[0] = new Thread(() -> {
-//            Log.d(TAG, "[PathFinder] PathFinder Thread A Started");
-//            List<Node> nodes = finder1.calculatePath();
-//            Log.d(TAG, "[PathFinder] PathFinder Thread A Calculated");
-//            if (nodes != null && successNodesList.size() == 0) {
-//                successNodesList.add(nodes);
-//                reverse[0] = false;
-//                Log.d(TAG, "[PathFinder] PathFinder Thread A Finished L:" + nodes.size());
-//                synchronized (main) {
-//                    main.notify();
-//                }
-//            }
-//        });
-//        threads[1] = new Thread(() -> {
-//            Log.d(TAG, "[PathFinder] PathFinder Thread B Started");
-//            List<Node> nodes = finder2.calculatePath();
-//            Log.d(TAG, "[PathFinder] PathFinder Thread B Calculated");
-//            if (nodes != null && successNodesList.size() == 0) {
-//                successNodesList.add(nodes);
-//                reverse[0] = true;
-//                Log.d(TAG, "[PathFinder] PathFinder Thread B Finished L:" + nodes.size());
-//                synchronized (main) {
-//                    main.notify();
-//                }
-//            }
-//        });
-//        Log.d(TAG, "[PathFinder] Starting PathFinder's Thread");
-//        threads[0].start();
-//        //threads[1].start();
-//        Log.d(TAG, "[PathFinder] Started PathFinder's Thread");
-//        synchronized (main) {
-//            try {
-//                Log.d(TAG, "[PathFinder] Main Thread Entered To Wait State");
-//                main.wait();
-//                Log.d(TAG, "[PathFinder] Main Thread Recovered From Wait State");
-//            } catch (InterruptedException e) {
-//                e.printStackTrace();
-//            }
-//        }
-//
-//        List<Node> successNodes = successNodesList.get(0);
-        if (successNodes.size() > 0) {
-            Log.d(TAG, "[PathFinder] Founded Path,Generating Full");
-            successNodes = sortNodes(successNodes);
-            for (int i = successNodes.size() - 1; i != 0; i--) {
-                double dx, dy, dz;
-                PathFinder.Vec3d nodePos = successNodes.get(i).getPos();
-                //if (reverse[0]) {
-                if (false) {
-                    dx = goalPoint.getX() + nodePos.getX();
-                    dy = goalPoint.getY() + nodePos.getY();
-                    dz = goalPoint.getZ() + nodePos.getZ();
-                } else {
-                    dx = currentPos.getX() + nodePos.getX();
-                    dy = currentPos.getY() + nodePos.getY();
-                    dz = currentPos.getZ() + nodePos.getZ();
-                }
-                Log.d(TAG, "PathFinder Move To " + dx + " " + dy + " " + dz);
-                api.moveTo(new Point(dx, dy, dz), quaternion, printRobotPosition);
-            }
-        }
-    }
-
-    public List<Node> sortNodes(List<Node> nodes) {
-        return nodes;
-    }
 
     public void moveToPoint(Point point){
         if(point.getX()<=minX || point.getX()>=maxX){
@@ -433,7 +356,8 @@ public class YourService extends KiboRpcService {
                 )
         );
     }
-    public Quaternion euler_to_quaternion (double roll, double pitch, double yaw, double KOZ){
+
+    public Quaternion euler_to_quaternion (double roll, double pitch, double yaw, Point a_prime){
 
         final float sin_roll = (float)Math.sin(roll*0.5f);
         final float cos_roll = (float)Math.cos(roll*0.5f);
@@ -444,12 +368,12 @@ public class YourService extends KiboRpcService {
         final float sin_yaw = (float)Math.sin(yaw*0.5f);
         final float cos_yaw = (float)Math.cos(yaw*0.5f);
 
-        float multi = KOZ>=5?1:-1;
+        final int multi = a_prime.getX()>0?-1:1;
 
-        float qx = sin_roll * cos_pitch * cos_yaw - cos_roll * sin_pitch * sin_yaw * multi;
-        float qy = cos_roll * sin_pitch * cos_yaw + sin_roll * cos_pitch * sin_yaw * multi;
-        float qz = cos_roll * cos_pitch * sin_yaw - sin_roll * sin_pitch * cos_yaw * multi;
-        float qw = cos_roll * cos_pitch * cos_yaw + sin_roll * sin_pitch * sin_yaw * multi;
+        float qx = (sin_roll * cos_pitch * cos_yaw) - (cos_roll * sin_pitch * sin_yaw)*multi;
+        float qy = (cos_roll * sin_pitch * cos_yaw) + (sin_roll * cos_pitch * sin_yaw)*multi;
+        float qz = (cos_roll * cos_pitch * sin_yaw) - (sin_roll * sin_pitch * cos_yaw)*multi;
+        float qw = (cos_roll * cos_pitch * cos_yaw) + (sin_roll * sin_pitch * sin_yaw)*multi;
 
         return new Quaternion(qx,qy,qz,qw);
     }
