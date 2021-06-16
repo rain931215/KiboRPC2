@@ -36,6 +36,9 @@ public class YourService extends KiboRpcService {
     public static final double dx_laser = 0.0572;//m
     public static final double dy_laser = 0.1111;//m
 
+    private static final double point_A_x = 11.21;
+    private static final double point_A_z = 5;
+
     private static final boolean ENABLE_PRINT_ROBOT_LOCATION = true;
     private static final int LOOP_MAX = 5;
     private static final Quaternion generalQuaternion = new Quaternion(0, 0, -0.707f, 0.707f);
@@ -219,7 +222,7 @@ public class YourService extends KiboRpcService {
 
     public void moveToPointA() {
         moveToPoint(new Point(11.21, -9.8, 5));
-        moveToPoint(new Point(11.21, -10, 5));
+        //moveToPoint(new Point(11.21, -10, 5));
     }
 
     public String scanQrCode() {
@@ -234,55 +237,131 @@ public class YourService extends KiboRpcService {
         return qrStr;
     }
 
-    public void moveToPointAPrime(Point point, int KOZ_Pattern) {
-        boolean moved = false;
-        double x = point.getX();
-        double y = point.getY();
-        double z = point.getZ();
+    public void moveToPointAPrime(Point a_prime, int KOZ_Pattern) {
+        double prevX = point_A_x;
+        double prevZ = point_A_z;
+        double x = a_prime.getX();
+        double y = a_prime.getY();
+        double z = a_prime.getZ();
         switch (KOZ_Pattern) {
             case 1:
-                moveToPoint(new Point(x, y, z - 0.31));
-                moved = true;
+                if(x<=prevX){
+                    if(z<prevZ){
+                        if(x+0.22>prevX){
+                            moveToPoint(new Point(x+0.25,y,z+0.5));
+                        }
+                        moveToPoint(new Point(x+0.25,y,z));
+                    }
+                }else{
+                    if(x-0.46>prevX){
+                        moveToPoint(new Point(x-0.5,y,z-0.25));
+                    }
+                    moveToPoint(new Point(x,y,z-0.25));
+                }
                 break;
             case 2:
-                moved = true;
+                if(z<prevZ){
+                    if (z+0.38<prevZ){
+                        moveToPoint(new Point(x-0.25,y,z+0.5));
+                    }
+                    if (x<prevX){
+                        moveToPoint(new Point(prevX,y,z));
+                    }else{
+                        moveToPoint(new Point(x-0.25,y,z));
+                    }
+                }
                 break;
             case 3:
-                moveToPoint(new Point(x, y, z - 0.31));
-                moved = true;
+                if(x>=prevX){
+                    if(z<prevZ){
+                        if(x-0.22<prevX){
+                            moveToPoint(new Point(x-0.25,y,z+0.5));
+                        }
+                        moveToPoint(new Point(x-0.25,y,z));
+                    }
+                }else{
+                    if(x+0.46<prevX){
+                        moveToPoint(new Point(x+0.5,y,z-0.25));
+                    }
+                    moveToPoint(new Point(x,y,z-0.25));
+                }
                 break;
             case 4:
-                moveToPoint(new Point(x, y, z - 0.31));
-                moved = true;
+                if(x<prevX){
+                    if (x+0.38<prevX){
+                        moveToPoint(new Point(x+0.5,y,z-0.25));
+                    }
+                    if (z<prevZ){
+                        moveToPoint(new Point(x,y,prevZ));
+                    }else{
+                        moveToPoint(new Point(x,y,z-0.25));
+                    }
+                }
                 break;
-            case 5:  // Works
-                moveToPoint(new Point(x - 0.25, y, z - 0.485));
-                moveToPoint(new Point(x - 0.25, y, z));
-                moved = true;
+            case 5:
+                if(x>=prevX){
+                    if(z>prevZ){
+                        if(x-0.22<prevX){
+                            moveToPoint(new Point(x-0.25,y,z-0.5));
+                        }
+                        moveToPoint(new Point(x-0.25,y,z));
+                    }
+                }else{
+                    if(z-0.38>prevZ){
+                        moveToPoint(new Point(x-0.25,y,z-0.5));
+                        moveToPoint(new Point(x-0.25,y,z));
+                    }else{
+                        moveToPoint(new Point(x+0.5,y,z+0.25));
+                        moveToPoint(new Point(x,y,z+0.25));
+                    }
+                }
                 break;
             case 6:
-                // TODO Need Smart Detect
-                moveToPoint(new Point(x - 0.25, y, z - 0.485));
-                moveToPoint(new Point(x - 0.25, y, z));
-                moved = true;
+                if(z>prevZ){
+                    if (z-0.38>prevZ){
+                        moveToPoint(new Point(x-0.25,y,z-0.5));
+                    }
+                    if (x<prevX){
+                        moveToPoint(new Point(prevX,y,z));
+                    }else{
+                        moveToPoint(new Point(x-0.25,y,z));
+                    }
+                }
                 break;
             case 7:
-                //移到旁邊
-                moveToPoint(new Point(x + 0.25, y, z - 0.485));
-                //移下去
-                moveToPoint(new Point(x + 0.25, y, z));
-                moved = true;
+                if(x<=prevX){
+                    if(z>prevZ){
+                        if(x+0.22>prevX){
+                            moveToPoint(new Point(x+0.25,y,z-0.5));
+                        }
+                        moveToPoint(new Point(x+0.25,y,z));
+                    }
+                }else{
+                    if(z-0.38>prevZ){
+                        moveToPoint(new Point(x+0.25,y,z-0.5));
+                        moveToPoint(new Point(x+0.25,y,z));
+                    }else{
+                        moveToPoint(new Point(x-0.5,y,z+0.25));
+                        moveToPoint(new Point(x,y,z+0.25));
+                    }
+                }
                 break;
             case 8:
-                moveToPoint(new Point(x, y, z - 0.31));
-                moved = true;
+                if(x>prevX){
+                    if (x-0.38>prevX){
+                        moveToPoint(new Point(x-0.5,y,z-0.25));
+                    }
+                    if (z<prevZ){
+                        moveToPoint(new Point(x,y,prevZ));
+                    }else{
+                        moveToPoint(new Point(x,y,z-0.25));
+                    }
+                }
                 break;
             default:
                 break;
         }
-        if (moved) {
-            moveToPoint(point);
-        }
+        moveToPoint(a_prime);
     }
 
     public static double[] magnification(double dis_x, double dis_y, int KOZ_Pattern){
@@ -297,9 +376,9 @@ public class YourService extends KiboRpcService {
                 result[2] = 1;
                 break;
             case 2://tuned not finish
-                result[0] = dis_x*0.5;
-                result[1] = -dis_y*1;
-                result[2] = 0.35;
+                result[0] = -dis_x;
+                result[1] = -dis_y;
+                result[2] = 1;
                 break;
             case 3://finish
                 result[0] = dis_x*0.5;
@@ -326,9 +405,9 @@ public class YourService extends KiboRpcService {
             case 7://finish
                 result[0] = 0;
                 result[1] = 0;
-                result[2] = 1;
+                result[2] = 0.5;
                 break;
-            case 8://fin
+            case 8://finish
                 result[0] = -dis_x*2;
                 result[1] = -dis_y;
                 result[2] = 1;
@@ -457,6 +536,7 @@ public class YourService extends KiboRpcService {
         float qw = (cos_roll * cos_pitch * cos_yaw) + (sin_roll * sin_pitch * sin_yaw) * multi;
 
         return new Quaternion(qx, qy, qz, qw);
+
     }
 }
 
