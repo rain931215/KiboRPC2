@@ -17,6 +17,7 @@ import java.util.List;
 import gov.nasa.arc.astrobee.types.Point;
 import gov.nasa.arc.astrobee.types.Quaternion;
 import jp.jaxa.iss.kibo.rpc.api.KiboRpcService;
+import gov.nasa.arc.astrobee.Result;
 //import jp.jaxa.iss.kibo.rpc.defaultapk.pathfinder.PathFinder;
 //import jp.jaxa.iss.kibo.rpc.defaultapk.pathfinder.Node;
 
@@ -32,8 +33,8 @@ public class YourService extends KiboRpcService {
 
     //the distance to target is 108.72cm while you are at the position of y=-9.95
     public static final double distance_center = 119.83;
-    public static final double dx_laser = 0.0572;
-    public static final double dy_laser = 0.1111;
+    public static final double dx_laser = 0.0572;//m
+    public static final double dy_laser = 0.1111;//m
 
     private static final boolean ENABLE_PRINT_ROBOT_LOCATION = true;
     private static final int LOOP_MAX = 5;
@@ -129,29 +130,45 @@ public class YourService extends KiboRpcService {
             // 6.875 pixel is 1 cm
             // Screen is H:960 W:1280 Center:(640,480)
             // dx dy is cm
-            //actually,the ture center is (699.64,497.1)
+            //the laser center is (699.64,497.1)
+            //the mass center is (669.0125,423.2125)
 
             double dx = (targetPixelX - 669.0125);
             double dy = (targetPixelY - 423.2125);
-            Log.d(TAG2, "Target dX:" + dx + " dY:" + dy);
+            Log.d(TAG2, "Target dX : " + dx + " dY : " + dy);
 
             final double pitch = 0;
 
             final double theta_x = Math.atan(Math.abs(dx)/ (distance_center * 6.875));
             final double theta_y = Math.atan(Math.abs(dy) / (distance_center * 6.875));
 
+
             //the unit is m
+            //依據KOZ調整dis_x的關係
+            //final double displacement_x = koz_pattern>=3&&koz_pattern<=6?Math.abs((dx_laser/Math.cos(theta_x)))*0.5:-Math.abs((dx_laser/Math.cos(theta_x)))*2;
+
             final double displacement_x = Math.abs((dx_laser/Math.cos(theta_x)));
+
+            //根據KOZ變號
             final double displacement_y = Math.abs((dy_laser/Math.cos(theta_y)));
 
-            final double yaw = dx > 0 ? -0.5 * Math.PI + theta_x : -0.5 * theta_x;
+            //依據KOZ調整dis_x的關係
+            double[] displacement = magnification(displacement_x, displacement_y,koz_pattern);
+
+            final double dis_x = displacement[0];
+            final double dis_y = displacement[1];
+            final double multi = displacement[2];
+
+            Log.d(TAG2,"displacement_x : "+displacement_x + " displacement_y : "+displacement_y);
+
+            final double yaw = dx > 0 ? -0.5 * Math.PI + theta_x*multi : -0.5 * Math.PI-theta_x;
 
             final double roll = dy > 0 ? -theta_y : theta_y;
 
             //還沒轉之前
-            Log.d(TAG2, "Yaw in degree:" + yaw * (180 / Math.PI) + " Pitch:" + pitch * (180 / Math.PI) + " Roll:" + roll * (180 / Math.PI));
+            Log.d(TAG2, "Yaw in degree : " + yaw * (180 / Math.PI) + " Pitch : " + pitch * (180 / Math.PI) + " Roll : " + roll * (180 / Math.PI));
 
-            Log.d(TAG2, "Yaw:" + yaw + " Pitch:" + pitch + " Roll:" + roll);
+            Log.d(TAG2, "Yaw : " + yaw + " Pitch : " + pitch + " Roll : " + roll);
 
 
             final Point s = api.getTrustedRobotKinematics().getPosition();
@@ -162,21 +179,26 @@ public class YourService extends KiboRpcService {
 
             Log.d(TAG2, "The Quaternion to rotate " + q.toString());
 
-            api.moveTo(a_prime, q, ENABLE_PRINT_ROBOT_LOCATION);
+            //先平移
+            final Point a_prime2 = new Point(a_prime.getX()+dis_x, a_prime.getY(), a_prime.getZ()+dis_y);
 
-//            new MoveTask().execute(
-//                    new MoveTaskParameters(
-//                            api,
-//                            s,
-//                            q,
-//                            LOOP_MAX,
-//                            ENABLE_PRINT_ROBOT_LOCATION
-//                    )
-//            );
+            //moveToPoint(a_prime2);
+
+            //旋轉
+            Result result = api.moveTo(a_prime2, q, ENABLE_PRINT_ROBOT_LOCATION);
+            Quaternion resultQu = api.getTrustedRobotKinematics().getOrientation();
+            int loopCounter = 0;
+            while ((!result.hasSucceeded() || resultQu.getX() - q.getX() >= 0.01 || resultQu.getY() - q.getY() >= 0.01 || resultQu.getZ() - q.getZ() >= 0.01)
+                    && loopCounter < 10) {
+                Log.d(TAG, "Retry to rotation");
+                result = api.moveTo(a_prime2, q, ENABLE_PRINT_ROBOT_LOCATION);
+                resultQu = api.getTrustedRobotKinematics().getOrientation();
+                ++loopCounter;
+            }
             Log.d(TAG2, "Rotation Finish");
 
-            moveToPoint(new Point(a_prime.getX()-displacement_x, a_prime.getY(), a_prime.getZ()+displacement_y));
-            Log.d(TAG2,"Position fixed");
+            final Point final_point = api.getTrustedRobotKinematics().getPosition();
+            Log.d(TAG2,"The final position :"+final_point.toString());
 
             Log.d(TAG2, "Turn on laser");
             api.laserControl(true);
@@ -245,7 +267,9 @@ public class YourService extends KiboRpcService {
                 moved = true;
                 break;
             case 7:
+                //移到旁邊
                 moveToPoint(new Point(x + 0.25, y, z - 0.485));
+                //移下去
                 moveToPoint(new Point(x + 0.25, y, z));
                 moved = true;
                 break;
@@ -260,6 +284,62 @@ public class YourService extends KiboRpcService {
             moveToPoint(point);
         }
     }
+
+    public static double[] magnification(double dis_x, double dis_y, int KOZ_Pattern){
+
+        double[] result = new double[3];
+
+        switch (KOZ_Pattern)
+        {
+            case 1://finish
+                result[0] = -dis_x*2;
+                result[1] = -dis_y;
+                result[2] = 1;
+                break;
+            case 2://tuned not finish
+                result[0] = dis_x*0.5;
+                result[1] = -dis_y*1;
+                result[2] = 0.35;
+                break;
+            case 3://finish
+                result[0] = dis_x*0.5;
+                result[1] = -dis_y*1;
+                result[2] = 0.35;
+                break;
+            case 4://finish
+                result[0] = dis_x*0.5;
+                result[1] = -dis_y*1;
+                result[2] = 0.35;
+                break;
+            case 5://finish
+                //result[0] = -dis_x*2.6;
+                result[0] = 0;
+                result[1] = -dis_y*0.3;
+                result[2] = 0.25;
+                break;
+            case 6://finish
+                //result[0] = -dis_x*2.6;
+                result[0] = 0;
+                result[1] = -dis_y*0.3;
+                result[2] = 0.25;
+                break;
+            case 7://finish
+                result[0] = 0;
+                result[1] = 0;
+                result[2] = 1;
+                break;
+            case 8://fin
+                result[0] = -dis_x*2;
+                result[1] = -dis_y;
+                result[2] = 1;
+                break;
+            default:
+                break;
+        }
+        return result;
+
+    }
+
 
     public void moveToPointB(Point aprimeRef, int KOZ_Pattern) {
         // TODO Need Modify
@@ -300,16 +380,19 @@ public class YourService extends KiboRpcService {
                 moved = true;
                 break;
             case 7:
-                Log.d(TAG, "Pattern 7 Move to node 1");
-                moveToPoint(new Point(x, y, 5.54));
-                Log.d(TAG, "Pattern 7 Move to node 2");
-                moveToPoint(new Point(10.5, y, 5.54));
-                moved = true;
+                Log.d(TAG,"Pattern 7 Move to node 1");
+                moveToPoint(new Point(x,y,z ));
+                moveToPoint(new Point(x + 0.25, y, z));
+                moveToPoint(new Point(x + 0.25, y, z - 0.485));
+                moveToPoint(new Point(x - 0.25, y, z - 0.485));
+                Log.d(TAG,"Pattern 7 Move to node 2");
+                moveToPoint(new Point(10.5,y,z));
+                moved=true;
                 break;
             case 8:
-                moveToPoint(new Point(x, y, z - 0.31 <= 4.31 ? 4.31 : z - 0.31));
-                moveToPoint(new Point(10.5, y, z - 0.31));
-                moved = true;
+                moveToPoint(new Point(x, y, z - 0.39 <= 4.31 ? 4.31 : z - 0.39));
+                moveToPoint(new Point(10.5, y, z - 0.39));
+                moved=true;
                 break;
             default:
                 break;
@@ -347,6 +430,7 @@ public class YourService extends KiboRpcService {
         );
     }
 
+
     public Quaternion euler_to_quaternion(double roll, double pitch, double yaw, Point a_prime) {
 
         final float sin_roll = (float) Math.sin(roll * 0.5f);
@@ -359,6 +443,13 @@ public class YourService extends KiboRpcService {
         final float cos_yaw = (float) Math.cos(yaw * 0.5f);
 
         final int multi = a_prime.getX() > 0 ? -1 : 1;
+
+        if (multi == -1){
+            Log.d(TAG2,"x > 0 " + "x: "+a_prime.getX()+"y: "+a_prime.getY()+"z: "+a_prime.getZ());
+        }
+        else{
+            Log.d(TAG2,"x < 0 " + "x: "+a_prime.getX()+"y: "+a_prime.getY()+"z: "+a_prime.getZ());
+        }
 
         float qx = (sin_roll * cos_pitch * cos_yaw) - (cos_roll * sin_pitch * sin_yaw) * multi;
         float qy = (cos_roll * sin_pitch * cos_yaw) + (sin_roll * cos_pitch * sin_yaw) * multi;
