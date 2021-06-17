@@ -1,7 +1,6 @@
 package jp.jaxa.iss.kibo.rpc.defaultapk;
 
 import android.graphics.Bitmap;
-//import android.os.AsyncTask;
 import android.util.Log;
 
 import com.google.zxing.BinaryBitmap;
@@ -14,7 +13,6 @@ import com.google.zxing.RGBLuminanceSource;
 import com.google.zxing.common.HybridBinarizer;
 import com.google.zxing.qrcode.QRCodeReader;
 
-//import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.Map;
 
@@ -22,8 +20,6 @@ import gov.nasa.arc.astrobee.Result;
 import gov.nasa.arc.astrobee.types.Point;
 import gov.nasa.arc.astrobee.types.Quaternion;
 import jp.jaxa.iss.kibo.rpc.api.KiboRpcApi;
-//import jp.jaxa.iss.kibo.rpc.defaultapk.pathfinder.Node;
-//import jp.jaxa.iss.kibo.rpc.defaultapk.pathfinder.PathFinder;
 
 class Tasks {
     private static final String TAG=YourService.TAG;
