@@ -10,7 +10,6 @@ import org.opencv.core.Mat;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import gov.nasa.arc.astrobee.Result;
@@ -23,6 +22,8 @@ import jp.jaxa.iss.kibo.rpc.api.KiboRpcService;
 import jp.jaxa.iss.kibo.rpc.defaultapk.Tasks.MoveTask;
 import jp.jaxa.iss.kibo.rpc.defaultapk.Tasks.MoveTaskParameters;
 import jp.jaxa.iss.kibo.rpc.defaultapk.Tasks.ScanTask;
+
+import static java.lang.Math.cos;
 
 /**
  * Class meant to handle commands from the Ground Data System and execute them in Astrobee
@@ -42,6 +43,9 @@ public class YourService extends KiboRpcService {
     // 4.32 ~ 5.57
     private static final double minZ = 4.27;
     private static final double maxZ = 5.52;
+
+    private static final double point_A_x = 11.21;
+    private static final double point_A_z = 5;
 
     @Override
     protected void runPlan1() {
@@ -91,8 +95,7 @@ public class YourService extends KiboRpcService {
             Log.d(TAG, "Move To A' Finish");
 
             // Scan AR Tag
-            Log.d(TAG, "Scan AR Tag Start");
-            //displayMsg(api,"Start Scan AR Tag");
+            Log.d(TAG, "Scan AR Tag Start");;
             Mat arucoIDs = new Mat();
             List<Mat> arucoCorners = new ArrayList<>();
             Aruco.detectMarkers(
@@ -102,79 +105,65 @@ public class YourService extends KiboRpcService {
                     arucoIDs);
             Log.d(TAG, "Scan AR Tag Finish (Length:"+arucoIDs.size()+")");
 
-            // Array is {leftRight's pixel/cm, upDown's pixel/cm}
-            double[] leftUpUnit = {0,0}, leftDownUnit = {0,0}, rightUpUnit = {0,0}, rightDownUnit = {0,0};
-            // Array is {x pixel in camera, y pixel in camera}
-            double[] leftUpPixel = {0,0}, leftDownPixel = {0,0}, rightUpPixel = {0,0}, rightDownPixel = {0,0};
+            double xPixelOffset = 0;
+            double yPixelOffset = 0;
+            double xUnit = 0;
+            double yUnit = 0;
 
-            for (int i = 0; i < arucoIDs.size().height; i++) {
-                // Tag ID LeftUp=2 LeftDown=3 RightUp=1 RightDown=4
-                int id = (int)arucoIDs.get(i,0)[0];
+            for (int i = 0; i < arucoCorners.size(); i++) {
                 // Tag Data
                 Mat tag = arucoCorners.get(i);
-                // n is pixel/cm
-                double unitUpDown=0, unitLeftRight=0;
                 double[] pixelPosLeftUp = tag.get(0, 0);
                 double[] pixelPosLeftDown = tag.get(0, 3);
                 double[] pixelPosRightUp = tag.get(0, 1);
                 double[] pixelPosRightDown = tag.get(0, 2);
-                Log.d(TAG,"AR Tag ID "+id+" Pixels:{"+ Arrays.toString(pixelPosLeftUp) +","+ Arrays.toString(pixelPosLeftDown) +","+ Arrays.toString(pixelPosRightUp) +","+ Arrays.toString(pixelPosRightDown) +"}");
-                unitUpDown = (Math.abs(pixelPosRightDown[1]-pixelPosLeftUp[1])+Math.abs(pixelPosLeftDown[1]-pixelPosRightUp[1]))/2/5;
-                unitLeftRight = (Math.abs(pixelPosRightDown[0]-pixelPosLeftUp[0])+Math.abs(pixelPosLeftDown[0]-pixelPosRightUp[0]))/2/5;
-                switch (id){
-                    case 1:
-                        rightUpUnit=new double[]{unitLeftRight,unitUpDown};
-                        rightUpPixel = new double[]{(pixelPosRightDown[0]+pixelPosLeftUp[0]+pixelPosLeftDown[0]+pixelPosRightUp[0])/4,(pixelPosRightDown[1]+pixelPosLeftUp[1]+pixelPosLeftDown[1]+pixelPosRightUp[1])/4};
-                        break;
-                    case 2:
-                        leftUpUnit=new double[]{unitLeftRight,unitUpDown};
-                        leftUpPixel = new double[]{(pixelPosRightDown[0]+pixelPosLeftUp[0]+pixelPosLeftDown[0]+pixelPosRightUp[0])/4,(pixelPosRightDown[1]+pixelPosLeftUp[1]+pixelPosLeftDown[1]+pixelPosRightUp[1])/4};
-                        break;
-                    case 3:
-                        leftDownUnit=new double[]{unitLeftRight,unitUpDown};
-                        leftDownPixel = new double[]{(pixelPosRightDown[0]+pixelPosLeftUp[0]+pixelPosLeftDown[0]+pixelPosRightUp[0])/4,(pixelPosRightDown[1]+pixelPosLeftUp[1]+pixelPosLeftDown[1]+pixelPosRightUp[1])/4};
-                        break;
-                    case 4:
-                        rightDownUnit=new double[]{unitLeftRight,unitUpDown};
-                        rightDownPixel = new double[]{(pixelPosRightDown[0]+pixelPosLeftUp[0]+pixelPosLeftDown[0]+pixelPosRightUp[0])/4,(pixelPosRightDown[1]+pixelPosLeftUp[1]+pixelPosLeftDown[1]+pixelPosRightUp[1])/4};
-                        break;
-                    default:
-                        break;
-                }
-                Log.d(TAG,"AR Tag ID "+id+" Pixels:"+tag.toString()+" Unit: {"+unitLeftRight+","+unitUpDown+"}");
+                xPixelOffset+=pixelPosRightDown[0]+pixelPosLeftUp[0]+pixelPosLeftDown[0]+pixelPosRightUp[0];
+                yPixelOffset+=pixelPosRightDown[1]+pixelPosLeftUp[1]+pixelPosLeftDown[1]+pixelPosRightUp[1];
+                xUnit += Math.abs((pixelPosRightUp[0]+pixelPosRightDown[0]-pixelPosLeftUp[0]-pixelPosLeftDown[0])/2/5);
+                yUnit += Math.abs((pixelPosRightDown[1]-pixelPosLeftUp[1]+pixelPosLeftDown[1]-pixelPosRightUp[1])/2/5);
+                Log.d(TAG,"AR Tag ID "+arucoIDs.get(i,0)[0]+" Unit:{x="+xUnit+" y="+yUnit+"}");
             }
-
-            double averageUnitX = (rightDownUnit[0]+leftUpUnit[0]+leftDownUnit[0]+rightUpUnit[0])/2;
-            double averageUnitY = (rightDownUnit[1]+leftUpUnit[1]+leftDownUnit[1]+rightUpUnit[1])/2;
+            xPixelOffset/=16;
+            yPixelOffset/=16;
+            xUnit/=4;
+            yUnit/=4;
 
             double centerX = 640;
             double centerY = 480;
 
-            double dx = (leftUpPixel[0]+leftDownPixel[0]+rightUpPixel[0]+rightDownPixel[0]-4*centerX)/averageUnitX;
-            double dy = (leftUpPixel[1]+leftDownPixel[1]+rightUpPixel[1]+rightDownPixel[1]-4*centerY)/averageUnitY;
+            xPixelOffset-=centerX;
+            yPixelOffset-=centerY;
 
-            Log.d(TAG,"Pixels: {"+ Arrays.toString(leftUpPixel)+","+Arrays.toString(rightDownPixel)+","+Arrays.toString(rightUpPixel) +","+Arrays.toString(leftDownPixel)+"}");
-            Log.d(TAG,"Average Unix x: "+averageUnitX+" y: "+averageUnitY);
+            double dx = xPixelOffset/xUnit;
+            double dy = yPixelOffset/yUnit;
+
+            dx-=4.22;
+            dy-=8.26;
+
             Log.d(TAG, "Target dX:" + dx + " dY:" + dy);
 
             double robot_to_wall = 134.83;
 
+            double r = Math.sqrt(dx*dx + dy*dy +robot_to_wall*robot_to_wall);
+
             double roll = Math.atan2(dx, robot_to_wall) - 0.5 * Math.PI;
             double pitch = 0;
-            double yaw = -Math.atan2(dy, robot_to_wall);
+            double yaw = -Math.asin(dy/r);
 
             Log.d(TAG, "Yaw:" + yaw + " Pitch:" + pitch + " Roll:" + roll);
             Quaternion q = euler_to_quaternion(roll, pitch, yaw);
             Log.d(TAG, "Target Quaternion: " + q.toString());
 
-            Point p = new Point(a_prime.getX()-0.0572/Math.cos(roll+0.5*Math.PI),-9.8,a_prime.getZ()+0.1111/Math.cos(yaw));
-            Result result = api.moveTo(a_prime, q, ENABLE_PRINT_ROBOT_LOCATION);
+            Point p = new Point(a_prime.getX()-0.0572/ cos(roll+0.5*Math.PI),a_prime.getY(),a_prime.getZ());
+            //Point p = new Point(a_prime.getX(),a_prime.getY(),a_prime.getZ());
+            Log.d(TAG,"Shift Pos: "+p.toString());
+            Result result = api.moveTo(p, q, ENABLE_PRINT_ROBOT_LOCATION);
             Quaternion resultQu = api.getTrustedRobotKinematics().getOrientation();
             int loopCounter = 0;
-            while ((!result.hasSucceeded() || resultQu.getX() - q.getX() >= 0.01 || resultQu.getY() - q.getY() >= 0.01 || resultQu.getZ() - q.getZ() >= 0.01)
+            while ((!result.hasSucceeded() || Math.abs(resultQu.getX()) - q.getX() >= 0.01 || Math.abs(resultQu.getY() - q.getY()) >= 0.01 || Math.abs(resultQu.getZ() - q.getZ()) >= 0.01)
                     && loopCounter < 10) {
                 Log.d(TAG, "Retry to rotation");
-                result = api.moveTo(a_prime, q, ENABLE_PRINT_ROBOT_LOCATION);
+                result = api.moveTo(p, q, ENABLE_PRINT_ROBOT_LOCATION);
                 resultQu = api.getTrustedRobotKinematics().getOrientation();
                 ++loopCounter;
             }
@@ -198,8 +187,8 @@ public class YourService extends KiboRpcService {
     }
 
     public void moveToPointA() {
-        moveToPoint(new Point(11.21, -9.8, 5));
-        moveToPoint(new Point(11.21, -10, 5));
+        moveToPoint(new Point(point_A_x, -9.8, point_A_z));
+        moveToPoint(new Point(point_A_x, -10, point_A_z));
     }
 
     public String scanQrCode() {
@@ -212,115 +201,173 @@ public class YourService extends KiboRpcService {
         return qrStr;
     }
 
-    public void moveToPointAPrime(Point point, int KOZ_Pattern) {
-        boolean moved = false;
-        double x = point.getX();
-        double y = point.getY();
-        double z = point.getZ();
+    public void moveToPointAPrime(Point a_prime, int KOZ_Pattern) {
+        double prevX = point_A_x;
+        double prevZ = point_A_z;
+        double x = a_prime.getX();
+        double y = a_prime.getY();
+        double z = a_prime.getZ();
         switch (KOZ_Pattern) {
             case 1:
-                moveToPoint(new Point(x, y, z - 0.31));
-                moved = true;
+                if(x<=prevX){
+                    if(z<prevZ){
+                        if(x+0.22>prevX){
+                            moveToPoint(new Point(x+0.25,y,z+0.5));
+                        }
+                        moveToPoint(new Point(x+0.25,y,z));
+                    }
+                }else{
+                    if(x-0.46>prevX){
+                        moveToPoint(new Point(x-0.5,y,z-0.25));
+                    }
+                    moveToPoint(new Point(x,y,z-0.25));
+                }
                 break;
             case 2:
-                moved = true;
+                if(z<prevZ){
+                    if (z+0.38<prevZ){
+                        moveToPoint(new Point(x-0.25,y,z+0.5));
+                    }
+                    if (x<prevX){
+                        moveToPoint(new Point(prevX,y,z));
+                    }else{
+                        moveToPoint(new Point(x-0.25,y,z));
+                    }
+                }
                 break;
             case 3:
-                moveToPoint(new Point(x, y, z - 0.31));
-                moved = true;
+                if(x>=prevX){
+                    if(z<prevZ){
+                        if(x-0.22<prevX){
+                            moveToPoint(new Point(x-0.25,y,z+0.5));
+                        }
+                        moveToPoint(new Point(x-0.25,y,z));
+                    }
+                }else{
+                    if(x+0.46<prevX){
+                        moveToPoint(new Point(x+0.5,y,z-0.25));
+                    }
+                    moveToPoint(new Point(x,y,z-0.25));
+                }
                 break;
             case 4:
-                moveToPoint(new Point(x, y, z - 0.31));
-                moved = true;
+                if(x<prevX){
+                    if (x+0.38<prevX){
+                        moveToPoint(new Point(x+0.5,y,z-0.25));
+                    }
+                    if (z<prevZ){
+                        moveToPoint(new Point(x,y,prevZ));
+                    }else{
+                        moveToPoint(new Point(x,y,z-0.25));
+                    }
+                }
                 break;
-            case 5:  // Works
-                moveToPoint(new Point(x - 0.25, y, z - 0.485));
-                moveToPoint(new Point(x - 0.25, y, z));
-                moved = true;
+            case 5:
+                if(x>=prevX){
+                    if(z>prevZ){
+                        if(x-0.22<prevX){
+                            moveToPoint(new Point(x-0.25,y,z-0.5));
+                        }
+                        moveToPoint(new Point(x-0.25,y,z));
+                    }
+                }else{
+                    if(z-0.38>prevZ){
+                        moveToPoint(new Point(x-0.25,y,z-0.5));
+                        moveToPoint(new Point(x-0.25,y,z));
+                    }else{
+                        moveToPoint(new Point(x+0.5,y,z+0.25));
+                        moveToPoint(new Point(x,y,z+0.25));
+                    }
+                }
                 break;
             case 6:
-                // TODO Need Smart Detect
-                moveToPoint(new Point(x - 0.25, y, z - 0.485));
-                moveToPoint(new Point(x - 0.25, y, z));
-                moved = true;
+                if(z>prevZ){
+                    if (z-0.38>prevZ){
+                        moveToPoint(new Point(x-0.25,y,z-0.5));
+                    }
+                    if (x<prevX){
+                        moveToPoint(new Point(prevX,y,z));
+                    }else{
+                        moveToPoint(new Point(x-0.25,y,z));
+                    }
+                }
                 break;
             case 7:
-                moveToPoint(new Point(x + 0.25, y, z - 0.485));
-                moveToPoint(new Point(x + 0.25, y, z));
-                moved = true;
+                if(x<=prevX){
+                    if(z>prevZ){
+                        if(x+0.22>prevX){
+                            moveToPoint(new Point(x+0.25,y,z-0.5));
+                        }
+                        moveToPoint(new Point(x+0.25,y,z));
+                    }
+                }else{
+                    if(z-0.38>prevZ){
+                        moveToPoint(new Point(x+0.25,y,z-0.5));
+                        moveToPoint(new Point(x+0.25,y,z));
+                    }else{
+                        moveToPoint(new Point(x-0.5,y,z+0.25));
+                        moveToPoint(new Point(x,y,z+0.25));
+                    }
+                }
                 break;
             case 8:
-                moveToPoint(new Point(x, y, z - 0.31));
-                moved = true;
+                if(x>prevX){
+                    if (x-0.38>prevX){
+                        moveToPoint(new Point(x-0.5,y,z-0.25));
+                    }
+                    if (z<prevZ){
+                        moveToPoint(new Point(x,y,prevZ));
+                    }else{
+                        moveToPoint(new Point(x,y,z-0.25));
+                    }
+                }
                 break;
             default:
                 break;
         }
-        if (moved) {
-            moveToPoint(point);
-        }
+        moveToPoint(a_prime);
     }
 
     public void moveToPointB(Point aprimeRef, int KOZ_Pattern) {
-        // TODO Need Modify
-
-        /*
-         * This version is only for test purpose
-         * Not for Judge
-         */
-
-        boolean moved = false;
         double x = aprimeRef.getX();
         //double y = aprimeRef.getY();
-        double y = -9;
         double z = aprimeRef.getZ();
         switch (KOZ_Pattern) {
             case 1:
-                moveToPoint(new Point(x, y, z - 0.31 <= 4.31 ? 4.31 : z - 0.31));
-                moveToPoint(new Point(10.5, y, z - 0.31));
-                moved = true;
+                moveToPoint(new Point(x, -9, z - 0.25));
+                moveToPoint(new Point(10.6, -9, z - 0.25));
                 break;
             case 2:
-                moveToPoint(new Point(10.5, y, z));
-                moved = true;
+                moveToPoint(new Point(10.6, -9, z));
                 break;
             case 3:
-                moveToPoint(new Point(10.5, y, z));
-                moved = true;
+                moveToPoint(new Point(10.6, -9, z));
                 break;
             case 4:
-                moveToPoint(new Point(10.5, y, z));
-                moved = true;
+                moveToPoint(new Point(10.6, -9, z));
                 break;
             case 5:
-                moveToPoint(new Point(10.5, y, z));
-                moved = true;
+                moveToPoint(new Point(10.6, -9, z));
                 break;
             case 6:
-                moveToPoint(new Point(10.5, y, z));
-                moved = true;
+                moveToPoint(new Point(10.6, -9, z));
                 break;
             case 7:
-                Log.d(TAG, "Pattern 7 Move to node 1");
-                moveToPoint(new Point(x, y, 5.54));
-                Log.d(TAG, "Pattern 7 Move to node 2");
-                moveToPoint(new Point(10.5, y, 5.54));
-                moved = true;
+                moveToPoint(new Point(x+0.25,-9,z));
+                moveToPoint(new Point(x+0.25, -9, z - 0.5));
+                moveToPoint(new Point(10.6, -9, z - 0.5));
                 break;
             case 8:
-                moveToPoint(new Point(x, y, 5.54));
-                moveToPoint(new Point(10.5, y, 5.54));
-                moved = true;
+                moveToPoint(new Point(x, -9, z - 0.25));
+                moveToPoint(new Point(10.6, -9, z - 0.25));
                 break;
             default:
                 break;
         }
-        if (moved) {
-            Log.d(TAG, "B Point Node 1");
-            moveToPoint(new Point(10.5, -8.0, 4.5));
-            Log.d(TAG, "B Point Node 2");
-            moveToPoint(new Point(10.6, -8.0, 4.5));
-        }
+        Log.d(TAG, "B Point Node 1");
+        moveToPoint(new Point(10.6, -8.0, 4.5));
+        Log.d(TAG, "B Point Node 2");
+        moveToPoint(new Point(10.6, -8.0, 4.5));
     }
 
     public void moveToPoint(Point point) {
@@ -348,10 +395,10 @@ public class YourService extends KiboRpcService {
     }
 
     static Quaternion euler_to_quaternion(double roll, double pitch, double yaw) {
-        double qx = Math.sin(roll / 2) * Math.cos(pitch / 2) * Math.cos(yaw / 2) + Math.cos(roll / 2) * Math.sin(pitch / 2) * Math.sin(yaw / 2);
-        double qy = Math.cos(roll / 2) * Math.sin(pitch / 2) * Math.cos(yaw / 2) - Math.sin(roll / 2) * Math.cos(pitch / 2) * Math.sin(yaw / 2);
-        double qz = Math.cos(roll / 2) * Math.cos(pitch / 2) * Math.sin(yaw / 2) + Math.sin(roll / 2) * Math.sin(pitch / 2) * Math.cos(yaw / 2);
-        double qw = Math.cos(roll / 2) * Math.cos(pitch / 2) * Math.cos(yaw / 2) - Math.sin(roll / 2) * Math.sin(pitch / 2) * Math.sin(yaw / 2);
+        double qx = Math.sin(roll / 2) * cos(pitch / 2) * cos(yaw / 2) + cos(roll / 2) * Math.sin(pitch / 2) * Math.sin(yaw / 2);
+        double qy = cos(roll / 2) * Math.sin(pitch / 2) * cos(yaw / 2) - Math.sin(roll / 2) * cos(pitch / 2) * Math.sin(yaw / 2);
+        double qz = cos(roll / 2) * cos(pitch / 2) * Math.sin(yaw / 2) + Math.sin(roll / 2) * Math.sin(pitch / 2) * cos(yaw / 2);
+        double qw = cos(roll / 2) * cos(pitch / 2) * cos(yaw / 2) - Math.sin(roll / 2) * Math.sin(pitch / 2) * Math.sin(yaw / 2);
 
         return new Quaternion((float) qz, (float) qy, (float) qx, (float) qw);
     }
