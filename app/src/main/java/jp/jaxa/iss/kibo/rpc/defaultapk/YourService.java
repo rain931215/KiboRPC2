@@ -33,8 +33,8 @@ public class YourService extends KiboRpcService {
     public static final double dx_laser = 0.0572;//m
     public static final double dy_laser = 0.1111;//m
 
-//    private static final double point_A_x = 11.21;
-//    private static final double point_A_z = 5;
+    private static final double point_A_x = 11.21;
+    private static final double point_A_z = 5;
 
     private static final boolean ENABLE_PRINT_ROBOT_LOCATION = true;
     private static final int LOOP_MAX = 5;
@@ -157,13 +157,15 @@ public class YourService extends KiboRpcService {
 
             final double dis_x = displacement[0];
             final double dis_y = displacement[1];
-            final double multi = displacement[2];
+            final double multi_x = displacement[2];
+            final double multi_y = displacement[3];
+
 
             Log.d(TAG2,"displacement_x : "+displacement_x + " displacement_y : "+displacement_y);
 
-            final double yaw = dx > 0 ? -0.5 * Math.PI + theta_x*multi : -0.5 * Math.PI-theta_x;
+            final double yaw = dx > 0 ? -0.5 * Math.PI + theta_x * multi_x : -0.5 * Math.PI - theta_x * multi_x;
 
-            final double roll = dy > 0 ? -theta_y : theta_y;
+            final double roll = dy > 0 ? -theta_y * multi_y : theta_y * multi_y;
 
             //還沒轉之前
             Log.d(TAG2, "Yaw in degree : " + yaw * (180 / Math.PI) + " Pitch : " + pitch * (180 / Math.PI) + " Roll : " + roll * (180 / Math.PI));
@@ -182,7 +184,6 @@ public class YourService extends KiboRpcService {
             //先平移
             final Point a_prime2 = new Point(a_prime.getX()+dis_x, a_prime.getY(), a_prime.getZ()+dis_y);
 
-            //moveToPoint(a_prime2);
 
             //旋轉
             Result result = api.moveTo(a_prime2, q, ENABLE_PRINT_ROBOT_LOCATION);
@@ -205,6 +206,8 @@ public class YourService extends KiboRpcService {
             api.takeSnapshot();
             api.laserControl(false);
             Log.d(TAG2, "Turn off laser");
+
+            moveToPoint(a_prime);
 
             Log.d(TAG, "Move To B Start");
             moveToPointB(a_prime, koz_pattern);
@@ -235,102 +238,148 @@ public class YourService extends KiboRpcService {
     }
 
 
-    public void moveToPointAPrime(Point point, int KOZ_Pattern) {
-        boolean moved = false;
-        double x = point.getX();
-        double y = point.getY();
-        double z = point.getZ();
+    public void moveToPointAPrime(Point a_prime, int KOZ_Pattern) {
+        double prevX = point_A_x;
+        double prevZ = point_A_z;
+        double x = a_prime.getX();
+        double y = a_prime.getY();
+        double z = a_prime.getZ();
         switch (KOZ_Pattern) {
             case 1:
-                moveToPoint(new Point(x, y, z - 0.31));
-                moved = true;
+                if(x<=prevX){
+                    if (z<prevZ){
+                        moveToPoint(new Point(x+0.25,y,z));
+                    }
+                }else{
+                    moveToPoint(new Point(x,y,z-0.25));
+                }
                 break;
             case 2:
-                moved = true;
+                if(z<prevZ){
+                    Point currentPoint = api.getTrustedRobotKinematics().getPosition();
+                    moveToPoint(new Point(currentPoint.getX(),y,z));
+                }
                 break;
             case 3:
-                moveToPoint(new Point(x, y, z - 0.31));
-                moved = true;
+                if(z<=prevZ){
+                    Point currentPoint = api.getTrustedRobotKinematics().getPosition();
+                    moveToPoint(new Point(currentPoint.getX(),y,z));
+                }
+                if (x+0.25<=prevX){
+                    moveToPoint(new Point(x+0.5,y,z+0.25));
+                    moveToPoint(new Point(x,y,z+0.25));
+                }
                 break;
             case 4:
-                moveToPoint(new Point(x, y, z - 0.31));
-                moved = true;
+                if(x+0.25<=prevX){
+                    moveToPoint(new Point(x+0.5,y,z+0.25));
+                }
+                if(x<=prevX){
+                    Point currentPoint = api.getTrustedRobotKinematics().getPosition();
+                    moveToPoint(new Point(x,y,currentPoint.getZ()));
+                }
                 break;
-            case 5:  // Works
-                moveToPoint(new Point(x - 0.25, y, z - 0.485));
-                moveToPoint(new Point(x - 0.25, y, z));
-                moved = true;
+            case 5:
+                if (z-0.25>prevZ){
+                    moveToPoint(new Point(x+0.5,y,z-0.5));
+                }
+                if(z>=prevZ){
+                    Point currentPoint = api.getTrustedRobotKinematics().getPosition();
+                    moveToPoint(new Point(currentPoint.getX(),y,z));
+                }
+                if (x+0.25<=prevX){
+                    moveToPoint(new Point(x+0.5,y,z+0.25));
+                    moveToPoint(new Point(x,y,z+0.25));
+                }
                 break;
             case 6:
-                // TODO Need Smart Detect
-                moveToPoint(new Point(x - 0.25, y, z - 0.485));
-                moveToPoint(new Point(x - 0.25, y, z));
-                moved = true;
+                if (z-0.25>prevZ){
+                    moveToPoint(new Point(x+0.5,y,z-0.5));
+                }
+                if(z>=prevZ){
+                    Point currentPoint = api.getTrustedRobotKinematics().getPosition();
+                    moveToPoint(new Point(currentPoint.getX(),y,z));
+                }
                 break;
             case 7:
-                //移到旁邊
-                moveToPoint(new Point(x + 0.25, y, z - 0.485));
-                //移下去
-                moveToPoint(new Point(x + 0.25, y, z));
-                moved = true;
+                if (z-0.25>prevZ){
+                    moveToPoint(new Point(x-0.5,y,z-0.5));
+                }
+                if(z>=prevZ){
+                    Point currentPoint = api.getTrustedRobotKinematics().getPosition();
+                    moveToPoint(new Point(currentPoint.getX(),y,z));
+                }
+                if (x-0.25>=prevX){
+                    moveToPoint(new Point(x-0.5,y,z+0.25));
+                    moveToPoint(new Point(x,y,z+0.25));
+                }
                 break;
             case 8:
-                moveToPoint(new Point(x, y, z - 0.31));
-                moved = true;
+                if(x-0.25>=prevX){
+                    moveToPoint(new Point(x+0.5,y,z+0.25));
+                }
+                if(x>=prevX){
+                    Point currentPoint = api.getTrustedRobotKinematics().getPosition();
+                    moveToPoint(new Point(x,y,currentPoint.getZ()));
+                }
                 break;
             default:
                 break;
         }
-        if (moved) {
-            moveToPoint(point);
-        }
+        moveToPoint(a_prime);
     }
 
     public static double[] magnification(double dis_x, double dis_y, double dx, double dy, int KOZ_Pattern){
-        double[] result = new double[3];
+        double[] result = new double[4];
         switch (KOZ_Pattern)
         {
             case 1://finish
                 result[0] = -dis_x*2;
                 result[1] = -dis_y;
                 result[2] = 1;
+                result[3] = 1;
                 break;
-            case 2://finish
-                result[0] = dis_x*1.5;
-                result[1] = -dis_y;
-                result[2] = 1;
-                break;
-            case 3://finish
-                result[0] = dis_x*0.5;
+            case 2://tuning//有一點怪怪
+                result[0] = dis_x;
                 result[1] = -dis_y*1;
-                result[2] = 0.35;
+                result[2] = 0.35;//0.35
+                result[3] = 1;//1
+                break;
+            case 3://tuning//有一點怪怪
+                result[0] = dis_x*1.5;
+                result[1] = -dis_y*0.8;
+                result[2] = 1;
+                result[3] = 1;
                 break;
             case 4://finish
                 result[0] = dis_x*0.5;
-                result[1] = -dis_y*1;
+                result[1] = -dis_y*0.65;
                 result[2] = 0.35;
+                result[3] = 1;
                 break;
             case 5://finish
-                //result[0] = -dis_x*2.6;
                 result[0] = 0;
-                result[1] = -dis_y*0.3;
+                result[1] = -dis_y*0.5;
                 result[2] = 0.25;
+                result[3] = 1;
                 break;
             case 6://finish
-                //result[0] = -dis_x*2.6;
                 result[0] = 0;
                 result[1] = -dis_y*0.3;
                 result[2] = 0.25;
+                result[3] = 1;
                 break;
             case 7://still tuning
-                result[0] = 0;
+                result[0] = -dis_x*2;
                 result[1] = 0;
-                result[2] = 0.5;
+                result[2] = 1;
+                result[3] = 1;
                 break;
             case 8://finish
                 result[0] = -dis_x*2;
                 result[1] = -dis_y;
                 result[2] = 1;
+                result[3] = 1;
                 break;
             default:
                 break;
@@ -341,74 +390,46 @@ public class YourService extends KiboRpcService {
 
 
     public void moveToPointB(Point aprimeRef, int KOZ_Pattern) {
-        // TODO Need Modify
-
-        /*
-         * This version is only for test purpose
-         * Not for Judge
-         */
-        boolean moved = false;
         double x = aprimeRef.getX();
         double y = aprimeRef.getY();
         double z = aprimeRef.getZ();
         switch (KOZ_Pattern) {
             case 1:
-                moveToPoint(new Point(x, y, z - 0.31 <= 4.31 ? 4.31 : z - 0.31));
-                moveToPoint(new Point(10.5, y, z - 0.31));
-                moved = true;
+                moveToPoint(new Point(x, y, 5));
+                moveToPoint(new Point(10.6, -9, 5));
                 break;
             case 2:
-                moveToPoint(new Point(10.5, y, z));
-                moved = true;
+                moveToPoint(new Point(10.6, -9, z));
                 break;
             case 3:
-                moveToPoint(new Point(10.5, y, z));
-                moved = true;
+                moveToPoint(new Point(10.6, -9, z));
                 break;
             case 4:
-                moveToPoint(new Point(10.5, y, z));
-                moved = true;
+                moveToPoint(new Point(10.6, -9, z));
                 break;
             case 5:
-                moveToPoint(new Point(10.5, y, z));
-                moved = true;
+                moveToPoint(new Point(10.6, -9, z));
                 break;
             case 6:
-                moveToPoint(new Point(10.5, y, z));
-                moved = true;
+                moveToPoint(new Point(10.6, -9, z));
                 break;
             case 7:
-                Log.d(TAG, "Pattern 7 Move to node 1");
-                moveToPoint(new Point(x, y, 5.54));
-                Log.d(TAG, "Pattern 7 Move to node 2");
-                moveToPoint(new Point(10.5, y, 5.54));
-                moved = true;
-                Log.d(TAG,"Pattern 7 Move to node 1");
-                moveToPoint(new Point(x,y,z ));
-                moveToPoint(new Point(x + 0.25, y, z));
-                moveToPoint(new Point(x + 0.25, y, z - 0.485));
-                moveToPoint(new Point(x - 0.25, y, z - 0.485));
-                Log.d(TAG,"Pattern 7 Move to node 2");
-                moveToPoint(new Point(10.5,y,z));
-                moved=true;
+                moveToPoint(new Point(x+0.25,y,z));
+                moveToPoint(new Point(x+0.25, y, 5));
+                moveToPoint(new Point(10.6, -9, 4.5));
                 break;
             case 8:
-                moveToPoint(new Point(x, y, z - 0.31 <= 4.31 ? 4.31 : z - 0.31));
-                moveToPoint(new Point(10.5, y, z - 0.31));
-                moved = true;
-                moveToPoint(new Point(x, y, z - 0.39 <= 4.31 ? 4.31 : z - 0.39));
-                moveToPoint(new Point(10.5, y, z - 0.39));
-                moved=true;
+                moveToPoint(new Point(x, y , 5));
+                moveToPoint(new Point(10.6, -9, 5));
                 break;
             default:
                 break;
         }
-        if (moved) {
-            Log.d(TAG, "B Point Node 1");
-            moveToPoint(new Point(10.5, -8.0, 4.5));
-            Log.d(TAG, "B Point Node 2");
-            moveToPoint(new Point(10.6, -8.0, 4.5));
-        }
+
+        Log.d(TAG, "B Point Node 1");
+        moveToPoint(new Point(10.6, -8.0, 4.5));
+        Log.d(TAG, "B Point Node 2");
+        moveToPoint(new Point(10.6, -8.0, 4.5));
     }
 
 
