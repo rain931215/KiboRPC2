@@ -3,22 +3,26 @@ package jp.jaxa.iss.kibo.rpc.defaultapk;
 import android.graphics.Bitmap;
 import android.util.Log;
 
-
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.opencv.aruco.Aruco;
 import org.opencv.core.Mat;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import gov.nasa.arc.astrobee.Result;
+import gov.nasa.arc.astrobee.android.gs.MessageType;
+import gov.nasa.arc.astrobee.android.gs.StartGuestScienceService;
 import gov.nasa.arc.astrobee.types.Point;
 import gov.nasa.arc.astrobee.types.Quaternion;
+import jp.jaxa.iss.kibo.rpc.api.KiboRpcApi;
 import jp.jaxa.iss.kibo.rpc.api.KiboRpcService;
-import gov.nasa.arc.astrobee.Result;
-
-import jp.jaxa.iss.kibo.rpc.defaultapk.Tasks.*;
+import jp.jaxa.iss.kibo.rpc.defaultapk.Tasks.MoveTask;
+import jp.jaxa.iss.kibo.rpc.defaultapk.Tasks.MoveTaskParameters;
+import jp.jaxa.iss.kibo.rpc.defaultapk.Tasks.ScanTask;
 
 /**
  * Class meant to handle commands from the Ground Data System and execute them in Astrobee
@@ -92,6 +96,8 @@ public class YourService extends KiboRpcService {
             Log.d(TAG, "Move To A' Finish");
 
             Log.d(TAG, "Scan AR Tag Start");
+            displayMsg(api,"Scan AR Tag Start");
+
             List<Mat> arucoCorners = new ArrayList<>();
 
             //final Point p = api.getTrustedRobotKinematics().getPosition();
@@ -104,6 +110,7 @@ public class YourService extends KiboRpcService {
                     arucoIDs);
 
             Log.d(TAG, "Scan AR Tag Finish");
+            displayMsg(api,"Scan AR Tag Finish");
             Log.d(TAG, "AR Tag ID List Length: " + arucoIDs.size());
 
             double targetPixelX = 0;
@@ -133,8 +140,8 @@ public class YourService extends KiboRpcService {
             //the laser center is (699.64,497.1)
             //the mass center is (669.0125,423.2125)
 
-            double dx = (targetPixelX - 669.0125);
-            double dy = (targetPixelY - 423.2125);
+            double dx = (targetPixelX - 699.64);
+            double dy = (targetPixelY - 497.1);
             Log.d(TAG2, "Target dX : " + dx + " dY : " + dy);
 
             final double pitch = 0;
@@ -143,17 +150,11 @@ public class YourService extends KiboRpcService {
             final double theta_y = Math.atan(Math.abs(dy) / (distance_center * 6.875));
 
 
-            //the unit is m
-            //依據KOZ調整dis_x的關係
-            //final double displacement_x = koz_pattern>=3&&koz_pattern<=6?Math.abs((dx_laser/Math.cos(theta_x)))*0.5:-Math.abs((dx_laser/Math.cos(theta_x)))*2;
-
             final double displacement_x = Math.abs((dx_laser/Math.cos(theta_x)));
-
-            //根據KOZ變號
             final double displacement_y = Math.abs((dy_laser/Math.cos(theta_y)));
 
             //依據KOZ調整dis_x的關係
-            double[] displacement = magnification(displacement_x, displacement_y, dx, dy, koz_pattern);
+            double[] displacement = magnification(displacement_x, displacement_y, koz_pattern);
 
             final double dis_x = displacement[0];
             final double dis_y = displacement[1];
@@ -161,7 +162,7 @@ public class YourService extends KiboRpcService {
             final double multi_y = displacement[3];
 
 
-            Log.d(TAG2,"displacement_x : "+displacement_x + " displacement_y : "+displacement_y);
+            //Log.d(TAG2,"displacement_x : "+displacement_x + " displacement_y : "+displacement_y);
 
             final double yaw = dx > 0 ? -0.5 * Math.PI + theta_x * multi_x : -0.5 * Math.PI - theta_x * multi_x;
 
@@ -184,6 +185,8 @@ public class YourService extends KiboRpcService {
             //先平移
             final Point a_prime2 = new Point(a_prime.getX()+dis_x, a_prime.getY(), a_prime.getZ()+dis_y);
 
+            displayMsg(api,"Rotation Start");
+
 
             //旋轉
             Result result = api.moveTo(a_prime2, q, ENABLE_PRINT_ROBOT_LOCATION);
@@ -197,6 +200,7 @@ public class YourService extends KiboRpcService {
                 ++loopCounter;
             }
             Log.d(TAG2, "Rotation Finish");
+            displayMsg(api,"Rotation Finish");
 
             final Point final_point = api.getTrustedRobotKinematics().getPosition();
             Log.d(TAG2,"The final position :"+final_point.toString());
@@ -207,7 +211,7 @@ public class YourService extends KiboRpcService {
             api.laserControl(false);
             Log.d(TAG2, "Turn off laser");
 
-            moveToPoint(a_prime);
+            //moveToPoint(a_prime);
 
             Log.d(TAG, "Move To B Start");
             moveToPointB(a_prime, koz_pattern);
@@ -221,8 +225,8 @@ public class YourService extends KiboRpcService {
 
 
     public void moveToPointA() {
-        moveToPoint(new Point(11.21, -9.8, 5));
-        //moveToPoint(new Point(11.21, -10, 5));
+        //moveToPoint(new Point(11.21, -9.8, 5));
+        moveToPoint(new Point(11.21, -10, 5));
     }
 
     public String scanQrCode() {
@@ -280,9 +284,7 @@ public class YourService extends KiboRpcService {
                 }
                 break;
             case 5:
-                if (z-0.25>prevZ){
-                    moveToPoint(new Point(x+0.5,y,z-0.5));
-                }
+                moveToPoint(new Point(x-0.5,y,z-0.5));
                 if(z>=prevZ){
                     Point currentPoint = api.getTrustedRobotKinematics().getPosition();
                     moveToPoint(new Point(currentPoint.getX(),y,z));
@@ -302,9 +304,7 @@ public class YourService extends KiboRpcService {
                 }
                 break;
             case 7:
-                if (z-0.25>prevZ){
-                    moveToPoint(new Point(x-0.5,y,z-0.5));
-                }
+                moveToPoint(new Point(x-0.5,y,z-0.5));
                 if(z>=prevZ){
                     Point currentPoint = api.getTrustedRobotKinematics().getPosition();
                     moveToPoint(new Point(currentPoint.getX(),y,z));
@@ -329,7 +329,27 @@ public class YourService extends KiboRpcService {
         moveToPoint(a_prime);
     }
 
-    public static double[] magnification(double dis_x, double dis_y, double dx, double dy, int KOZ_Pattern){
+    static void displayMsg(KiboRpcApi api,String msg){
+        try {
+            Field f = api.getClass().getDeclaredField("gsService");
+            f.setAccessible(true);
+            StartGuestScienceService gsService = (StartGuestScienceService) f.get(api);
+            JSONObject data = new JSONObject();
+            data.put("status", msg);
+            gsService.sendData(MessageType.JSON, "data", data.toString());
+        }
+        catch (NoSuchFieldException e) {
+            e.printStackTrace();
+        }
+        catch (IllegalAccessException e) {
+            e.printStackTrace();
+        }
+        catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static double[] magnification(double dis_x, double dis_y, int KOZ_Pattern){
         double[] result = new double[4];
         switch (KOZ_Pattern)
         {
@@ -338,18 +358,22 @@ public class YourService extends KiboRpcService {
                 result[1] = -dis_y;
                 result[2] = 1;
                 result[3] = 1;
+//                result[0] = 0;
+//                result[1] = 0;
+//                result[2] = 2.2;
+//                result[3] = 0.75;
                 break;
-            case 2://tuning//有一點怪怪
+            case 2://tuning
                 result[0] = dis_x;
-                result[1] = -dis_y*1;
-                result[2] = 0.35;//0.35
-                result[3] = 1;//1
+                result[1] = 0;
+                result[2] = 0.23;
+                result[3] = 0.8;
                 break;
-            case 3://tuning//有一點怪怪
-                result[0] = dis_x*1.5;
-                result[1] = -dis_y*0.8;
+            case 3://tuning
+                result[0] = dis_x*1.77;
+                result[1] = 0;
                 result[2] = 1;
-                result[3] = 1;
+                result[3] = 0.8;
                 break;
             case 4://finish
                 result[0] = dis_x*0.5;
@@ -370,9 +394,9 @@ public class YourService extends KiboRpcService {
                 result[3] = 1;
                 break;
             case 7://still tuning
-                result[0] = -dis_x*2;
+                result[0] = 0;
                 result[1] = 0;
-                result[2] = 1;
+                result[2] = 2;
                 result[3] = 1;
                 break;
             case 8://finish
@@ -384,6 +408,7 @@ public class YourService extends KiboRpcService {
             default:
                 break;
         }
+        Log.d(TAG2,"Multi_x : "+result[2]+" Multi_y : "+result[3]);
         return result;
 
     }
@@ -425,7 +450,6 @@ public class YourService extends KiboRpcService {
             default:
                 break;
         }
-
         Log.d(TAG, "B Point Node 1");
         moveToPoint(new Point(10.6, -8.0, 4.5));
         Log.d(TAG, "B Point Node 2");
@@ -488,4 +512,5 @@ public class YourService extends KiboRpcService {
 
     }
 }
+
 
