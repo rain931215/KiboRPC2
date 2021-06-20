@@ -216,16 +216,10 @@ public class YourService extends KiboRpcService {
             moveToPoint(new Point(10.6, -8.0, 4.5));
         }
 
-        //Todo
-        boolean report = api.reportMissionCompletion();
+
+        api.reportMissionCompletion();
         Log.d(TAG, "Report Mission Completion");
 
-        int times = 0;
-        while (!report && times < 10) {
-            api.reportMissionCompletion();
-            Log.d(TAG, "Retry mission completion");
-            times++;
-        }
 
 
     }
@@ -301,7 +295,7 @@ public class YourService extends KiboRpcService {
                     moveToPoint(new Point(x,y,z+0.25));
                 }
                 break;
-                //Todo
+            //Todo
             case 6:
                 moveToPoint(new Point(x - 0.25, y, z - 0.485));
                 moveToPoint(new Point(x - 0.25, y, z));
