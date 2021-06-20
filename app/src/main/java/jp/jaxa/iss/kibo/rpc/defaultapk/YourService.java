@@ -236,7 +236,7 @@ public class YourService extends KiboRpcService {
 
 
     public void moveToPointA() {
-        //moveToPoint(new Point(11.21, -9.8, 5));
+        moveToPoint(new Point(11.21, -9.8, 5));
         moveToPoint(new Point(11.21, -10, 5));
     }
 
