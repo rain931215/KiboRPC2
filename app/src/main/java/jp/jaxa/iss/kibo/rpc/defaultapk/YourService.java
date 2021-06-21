@@ -340,14 +340,14 @@ public class YourService extends KiboRpcService {
                 break;
             case 5://finish
                 result[0] = -dis_x*0.3;
-                result[1] = -dis_y*0.3;
-                result[2] = 0.25;
+                result[1] = -dis_y*0.33;
+                result[2] = 0.27;
                 result[3] = 1;
                 break;
             case 6://finish
                 result[0] = -dis_x*0.3;
-                result[1] = -dis_y*0.3;
-                result[2] = 0.25;
+                result[1] = -dis_y*0.33;
+                result[2] = 0.27;
                 result[3] = 1;
                 break;
             case 7://finish
@@ -501,7 +501,7 @@ public class YourService extends KiboRpcService {
         return new Quaternion(qx, qy, qz, qw);
 
     }
-    //final version_2
+    //final version_3
 }
 
 
