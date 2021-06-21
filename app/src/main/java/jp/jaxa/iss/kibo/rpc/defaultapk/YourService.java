@@ -226,10 +226,8 @@ public class YourService extends KiboRpcService {
             moveToPoint(new Point(10.6, -8.0, 4.5));
         }
 
-
-        api.reportMissionCompletion();
         Log.d(TAG, "Report Mission Completion");
-
+        api.reportMissionCompletion();
 
 
     }
@@ -503,7 +501,7 @@ public class YourService extends KiboRpcService {
         return new Quaternion(qx, qy, qz, qw);
 
     }
-    //final version
+    //final version_2
 }
 
 
